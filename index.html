@@ -3,93 +3,74 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Agentic Compute Arena — E0 Ground Truth</title>
+  <title>สนามทดลองการคำนวณเกม — E0 โลกอ้างอิง</title>
   <style>
-    :root{--bg:#07111f;--panel:#0d1b2d;--panel2:#12243a;--line:#24415f;--text:#e7f0fa;--muted:#8ea6bf;--cyan:#46c7ff;--green:#59df9f;--amber:#ffd166;--red:#ff6b6b;--violet:#b184ff}
-    *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 20% 0%,#0e2a46 0,#07111f 42%);color:var(--text);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-    header{padding:18px 20px;border-bottom:1px solid var(--line);background:#07111fcc;position:sticky;top:0;z-index:3;backdrop-filter:blur(12px)}
-    h1{font-size:22px;margin:0} .sub{color:var(--muted);margin-top:4px}.badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid #2d5b7e;color:#8bddff;margin-left:8px;font-size:12px}
-    main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,.8fr);gap:14px;padding:14px;max-width:1500px;margin:auto}
-    .panel{background:linear-gradient(180deg,#0d1b2de8,#091725e8);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px #0005;overflow:hidden}.panel h2{font-size:15px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);color:#dff5ff}
-    .arena-wrap{padding:12px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.toolbar input,.toolbar select,.toolbar button{background:#0b1b2c;color:var(--text);border:1px solid #2f4b67;border-radius:8px;padding:8px 10px}.toolbar button{cursor:pointer}.toolbar button:hover{border-color:var(--cyan)}
-    canvas{width:100%;aspect-ratio:16/9;background:#07101c;border:1px solid #28445d;border-radius:10px;display:block}
-    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.metric{background:#0a1928;border:1px solid #233d57;border-radius:10px;padding:9px}.metric b{display:block;font-size:18px;color:#fff}.metric span{color:var(--muted);font-size:11px}
-    .side{display:grid;gap:14px;align-content:start}.content{padding:12px 14px}.kv{display:grid;grid-template-columns:1fr auto;gap:6px 10px}.kv div:nth-child(odd){color:var(--muted)}.ok{color:var(--green)}.warn{color:var(--amber)}.bad{color:var(--red)}
-    .events{height:190px;overflow:auto;background:#07111d;border:1px solid #21384f;border-radius:9px;padding:8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}.events div{padding:3px 0;border-bottom:1px solid #14283a}.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;color:var(--muted);font-size:12px}.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px}
-    .arch{display:grid;gap:7px}.node{border:1px solid #2a4c6c;background:#0c1c2d;border-radius:8px;padding:8px 10px}.arrow{text-align:center;color:#6f91ad}.foot{padding:0 14px 14px;color:var(--muted);font-size:12px}
-    @media(max-width:900px){main{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}}
+    :root{--bg:#07111f;--panel:#0d1b2d;--line:#24415f;--text:#e7f0fa;--muted:#8ea6bf;--cyan:#46c7ff;--green:#59df9f;--amber:#ffd166;--red:#ff6b6b}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0%,#0e2a46 0,#07111f 42%);color:var(--text);font:14px/1.55 system-ui,-apple-system,"Noto Sans Thai",sans-serif}header{padding:18px 20px;border-bottom:1px solid var(--line);background:#07111fcc;position:sticky;top:0;z-index:3;backdrop-filter:blur(12px)}h1{font-size:22px;margin:0}.sub{color:var(--muted);margin-top:4px}.badge{display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid #2d5b7e;color:#8bddff;margin-left:8px;font-size:12px}main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(320px,.8fr);gap:14px;padding:14px;max-width:1500px;margin:auto}.panel{background:linear-gradient(180deg,#0d1b2de8,#091725e8);border:1px solid var(--line);border-radius:14px;box-shadow:0 12px 32px #0005;overflow:hidden}.panel h2{font-size:15px;margin:0;padding:12px 14px;border-bottom:1px solid var(--line);color:#dff5ff}.arena-wrap{padding:12px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center}.toolbar input,.toolbar select,.toolbar button{background:#0b1b2c;color:var(--text);border:1px solid #2f4b67;border-radius:8px;padding:8px 10px}.toolbar button{cursor:pointer}.toolbar button:hover{border-color:var(--cyan)}canvas{width:100%;aspect-ratio:16/9;background:#07101c;border:1px solid #28445d;border-radius:10px;display:block}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.metric{background:#0a1928;border:1px solid #233d57;border-radius:10px;padding:9px}.metric b{display:block;font-size:18px;color:#fff}.metric span{color:var(--muted);font-size:11px}.side{display:grid;gap:14px;align-content:start}.content{padding:12px 14px}.kv{display:grid;grid-template-columns:1fr auto;gap:6px 10px}.kv div:nth-child(odd){color:var(--muted)}.ok{color:var(--green)}.warn{color:var(--amber)}.bad{color:var(--red)}.events{height:190px;overflow:auto;background:#07111d;border:1px solid #21384f;border-radius:9px;padding:8px;font-family:ui-monospace,monospace;font-size:12px}.events div{padding:3px 0;border-bottom:1px solid #14283a}.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;color:var(--muted);font-size:12px}.dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:4px}.arch{display:grid;gap:7px}.node{border:1px solid #2a4c6c;background:#0c1c2d;border-radius:8px;padding:8px 10px}.arrow{text-align:center;color:#6f91ad}.foot{padding:0 14px 14px;color:var(--muted);font-size:12px}@media(max-width:900px){main{grid-template-columns:1fr}.grid{grid-template-columns:repeat(2,1fr)}}
   </style>
 </head>
 <body>
 <header>
-  <h1>Agentic Compute Arena <span class="badge">E0 Ground Truth</span></h1>
-  <div class="sub">Deterministic 2D world • Scenario Generator • Replayable Seed • Benchmark Skeleton</div>
+  <h1>สนามทดลองการคำนวณเกม <span class="badge">E0 โลกอ้างอิง</span></h1>
+  <div class="sub">โลก 2 มิติแบบกำหนดผลซ้ำได้ • ตัวสร้างสถานการณ์ • เล่นซ้ำด้วยซีดเดิม • โครงทดสอบประสิทธิภาพ</div>
 </header>
 <main>
   <section class="panel">
-    <h2>โลกทดลอง (Ground Truth Compute Arena)</h2>
+    <h2>โลกทดลองอ้างอิง</h2>
     <div class="arena-wrap">
       <div class="toolbar">
-        <label>Seed <input id="seed" type="number" value="42" style="width:90px"></label>
-        <label>Scenario <select id="scenario"><option value="baseline">Baseline</option><option value="projectile">Projectile Storm</option><option value="dense">Dense Contact</option><option value="quiet">Long Quiet → Combat</option></select></label>
-        <button id="reset">Reset</button><button id="step">Step 1 Tick</button><button id="play">▶ Play</button><button id="bench">Run 5k Benchmark</button><button id="export">Export Replay</button>
+        <label>ซีด <input id="seed" type="number" value="42" style="width:90px"></label>
+        <label>สถานการณ์ <select id="scenario"><option value="baseline">พื้นฐาน</option><option value="projectile">พายุโพรเจกไทล์</option><option value="dense">การปะทะหนาแน่น</option><option value="quiet">สงบยาว → เข้าสู่การต่อสู้</option></select></label>
+        <button id="reset">เริ่มใหม่</button><button id="step">เดิน 1 ติ๊ก</button><button id="play">▶ เล่น</button><button id="bench">ทดสอบ 5,000 ติ๊ก</button><button id="export">ส่งออกข้อมูลเล่นซ้ำ</button>
       </div>
       <canvas id="game" width="960" height="540"></canvas>
-      <div class="legend"><span><i class="dot" style="background:#46c7ff"></i>Player</span><span><i class="dot" style="background:#ff6b6b"></i>Enemy</span><span><i class="dot" style="background:#ffd166"></i>Projectile</span><span><i class="dot" style="background:#7b8794"></i>Wall</span><span><i class="dot" style="background:#59df9f"></i>Base</span></div>
+      <div class="legend"><span><i class="dot" style="background:#46c7ff"></i>ผู้เล่น</span><span><i class="dot" style="background:#ff6b6b"></i>ศัตรู</span><span><i class="dot" style="background:#ffd166"></i>โพรเจกไทล์</span><span><i class="dot" style="background:#7b8794"></i>กำแพง</span><span><i class="dot" style="background:#59df9f"></i>ฐาน</span></div>
       <div class="grid">
-        <div class="metric"><b id="tick">0</b><span>Tick</span></div>
-        <div class="metric"><b id="entities">0</b><span>Entities</span></div>
-        <div class="metric"><b id="eventsN">0</b><span>Events</span></div>
-        <div class="metric"><b id="hash">—</b><span>State Hash</span></div>
+        <div class="metric"><b id="tick">0</b><span>ติ๊ก</span></div>
+        <div class="metric"><b id="entities">0</b><span>เอนทิตี</span></div>
+        <div class="metric"><b id="eventsN">0</b><span>เหตุการณ์</span></div>
+        <div class="metric"><b id="hash">—</b><span>แฮชสถานะ</span></div>
       </div>
     </div>
   </section>
 
   <aside class="side">
-    <section class="panel"><h2>Determinism / Replay</h2><div class="content kv"><div>Fixed timestep</div><div class="ok">1/60 s</div><div>Seeded RNG</div><div class="ok">ON</div><div>Stable IDs</div><div class="ok">ON</div><div>Event ordering</div><div class="ok">LOCKED</div><div>Replay capture</div><div id="replayCount">0 ticks</div><div>Reference precision</div><div>JS Number / FP64</div></div></section>
-    <section class="panel"><h2>Benchmark</h2><div class="content kv"><div>Last run</div><div id="benchStatus">Not run</div><div>Ticks</div><div id="benchTicks">—</div><div>Total</div><div id="benchTotal">—</div><div>µs / tick</div><div id="benchPer">—</div><div>Deterministic repeat</div><div id="benchDet">—</div></div></section>
-    <section class="panel"><h2>Event Log</h2><div class="content"><div id="events" class="events"></div></div></section>
-    <section class="panel"><h2>Build Path</h2><div class="content arch"><div class="node">E0 • Ground Truth Arena <span class="ok">NOW</span></div><div class="arrow">↓</div><div class="node">E1 • Exact + Approx Classical</div><div class="arrow">↓</div><div class="node">E2 • Tiny MLP</div><div class="arrow">↓</div><div class="node">E3 • Message-Passing GNN</div><div class="arrow">↓</div><div class="node">E4 • Residual GNN</div><div class="arrow">↓</div><div class="node">E5 • Skill Frontier</div><div class="arrow">↓</div><div class="node">E6 • Oracle + Adaptation Headroom</div></div><div class="foot">ยังไม่สร้าง Router จนกว่า Oracle จะพิสูจน์ว่ามี adaptation headroom เหนือ Expert Fixed Hybrid</div></section>
+    <section class="panel"><h2>ความคงที่ของผล / การเล่นซ้ำ</h2><div class="content kv"><div>ช่วงเวลาแต่ละติ๊ก</div><div class="ok">1/60 วินาที</div><div>ตัวสุ่มแบบมีซีด</div><div class="ok">เปิด</div><div>รหัสเอนทิตีคงที่</div><div class="ok">เปิด</div><div>ลำดับเหตุการณ์</div><div class="ok">ล็อกแล้ว</div><div>จำนวนติ๊กที่บันทึก</div><div id="replayCount">0 ติ๊ก</div><div>ความละเอียดอ้างอิง</div><div>เลขจาวาสคริปต์ / 64 บิต</div></div></section>
+    <section class="panel"><h2>ผลทดสอบประสิทธิภาพ</h2><div class="content kv"><div>สถานะล่าสุด</div><div id="benchStatus">ยังไม่ได้ทดสอบ</div><div>จำนวนติ๊ก</div><div id="benchTicks">—</div><div>เวลารวม</div><div id="benchTotal">—</div><div>ไมโครวินาที / ติ๊ก</div><div id="benchPer">—</div><div>ผลซ้ำตรงกัน</div><div id="benchDet">—</div></div></section>
+    <section class="panel"><h2>บันทึกเหตุการณ์</h2><div class="content"><div id="events" class="events"></div></div></section>
+    <section class="panel"><h2>ลำดับการพัฒนา</h2><div class="content arch"><div class="node">E0 • โลกทดลองอ้างอิง <span class="ok">กำลังทำ</span></div><div class="arrow">↓</div><div class="node">E1 • คลาสสิกแบบแม่นตรง + แบบประมาณ</div><div class="arrow">↓</div><div class="node">E2 • โครงข่ายประสาทขนาดเล็ก</div><div class="arrow">↓</div><div class="node">E3 • จีเอ็นเอ็นแบบส่งผ่านข้อความ</div><div class="arrow">↓</div><div class="node">E4 • จีเอ็นเอ็นแบบเรียนค่าคลาดเคลื่อน</div><div class="arrow">↓</div><div class="node">E5 • แผนที่ขอบเขตความสามารถของสกิล</div><div class="arrow">↓</div><div class="node">E6 • ตัวเลือกออราเคิล + ช่องว่างประโยชน์ของการปรับตัว</div></div><div class="foot">ยังไม่สร้างตัวเลือกแบบเรียนรู้ จนกว่าตัวเลือกออราเคิลจะพิสูจน์ว่ามีช่องว่างประโยชน์เหนือระบบไฮบริดแบบคงที่ที่ปรับแต่งอย่างดี</div></section>
   </aside>
 </main>
 <script>
 (() => {
-  const W=960,H=540,DT=1/60;
-  const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
-  const $=id=>document.getElementById(id);
-  let state,playing=false,raf=0,acc=0,last=0,replay=[];
+  const W=960,H=540,DT=1/60,canvas=document.getElementById('game'),ctx=canvas.getContext('2d'),$=id=>document.getElementById(id);
+  let state,playing=false,last=0,acc=0,replay=[];
   function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
   function entity(id,type,x,y,r=10){return{id,type,x,y,vx:0,vy:0,r,hp:100,active:true}}
   function wall(id,x,y,w,h){return{id,type:'wall',x,y,w,h,active:true}}
-  function makeWorld(seed,scenario){const R=rng(seed);let e=[];e.push(entity(1,'player',140,270,12));e.push({...entity(2,'base',80,270,17),hp:500});e.push(wall(100,430,130,26,190),wall(101,650,290,30,160),wall(102,260,360,150,24));let enemies=scenario==='dense'?18:scenario==='projectile'?10:6;for(let i=0;i<enemies;i++){let q=entity(10+i,'enemy',560+R()*280,70+R()*390,10);q.vx=(-25-R()*35);q.vy=(R()-.5)*35;e.push(q)}if(scenario==='quiet'){for(let q of e)if(q.type==='enemy'){q.x=830+R()*90;q.vx=-3}}return{tick:0,seed,scenario,entities:e,nextId:1000,events:[],R,spawnTimer:0}}
-  function circleRect(c,r){let nx=Math.max(r.x,Math.min(c.x,r.x+r.w)),ny=Math.max(r.y,Math.min(c.y,r.y+r.h));let dx=c.x-nx,dy=c.y-ny;return dx*dx+dy*dy<c.r*c.r}
-  function circleCircle(a,b){let dx=a.x-b.x,dy=a.y-b.y,rr=a.r+b.r;return dx*dx+dy*dy<rr*rr}
+  function makeWorld(seed,scenario){const R=rng(seed),e=[];e.push(entity(1,'player',140,270,12),{...entity(2,'base',80,270,17),hp:500},wall(100,430,130,26,190),wall(101,650,290,30,160),wall(102,260,360,150,24));let n=scenario==='dense'?18:scenario==='projectile'?10:6;for(let i=0;i<n;i++){let q=entity(10+i,'enemy',560+R()*280,70+R()*390,10);q.vx=-25-R()*35;q.vy=(R()-.5)*35;e.push(q)}if(scenario==='quiet')for(let q of e)if(q.type==='enemy'){q.x=830+R()*90;q.vx=-3}return{tick:0,seed,scenario,entities:e,nextId:1000,events:[]}}
   function emit(type,a,b=0){state.events.push({tick:state.tick,type,a,b})}
-  function spawnProjectile(x,y,vx,vy,owner){let p=entity(state.nextId++,'projectile',x,y,4);p.vx=vx;p.vy=vy;p.owner=owner;p.hp=1;state.entities.push(p);emit('SPAWN',p.id,owner)}
-  function update(){state.tick++;state.events=[];const player=state.entities.find(x=>x.type==='player');
-    // deterministic scripted player motion
-    player.vx=48*Math.sin(state.tick*0.013);player.vy=32*Math.cos(state.tick*0.009);
-    // deterministic projectile schedules
-    if(state.scenario==='projectile' && state.tick%10===0){let y=40+(state.tick*37)%450;spawnProjectile(900,y,-260,0,99)}
-    if(state.scenario==='dense' && state.tick%22===0){spawnProjectile(160,270,250,((state.tick%3)-1)*60,1)}
-    if(state.scenario==='baseline' && state.tick%45===0){let enemy=state.entities.find(x=>x.type==='enemy'&&x.active);if(enemy){let dx=player.x-enemy.x,dy=player.y-enemy.y,d=Math.hypot(dx,dy)||1;spawnProjectile(enemy.x,enemy.y,dx/d*170,dy/d*170,enemy.id)}}
-    if(state.scenario==='quiet' && state.tick===360){for(let q of state.entities)if(q.type==='enemy')q.vx=-110;emit('PHASE','COMBAT_START')}
-    for(let a of state.entities){if(!a.active||a.type==='wall'||a.type==='base')continue;a.x+=a.vx*DT;a.y+=a.vy*DT;if(a.type==='enemy'){let dx=player.x-a.x,dy=player.y-a.y,d=Math.hypot(dx,dy)||1;a.vx+=dx/d*10*DT;a.vy+=dy/d*10*DT}if(a.x<-30||a.x>W+30||a.y<-30||a.y>H+30){a.active=false;emit('DESPAWN',a.id)}}
-    const walls=state.entities.filter(x=>x.type==='wall');for(let a of state.entities){if(!a.active||!a.r||a.type==='projectile')continue;for(let w of walls)if(circleRect(a,w)){a.x-=a.vx*DT;a.y-=a.vy*DT;a.vx*=-.55;a.vy*=-.55;emit('COLLISION',a.id,w.id)}}
-    const movers=state.entities.filter(x=>x.active&&x.r&&x.type!=='wall');for(let i=0;i<movers.length;i++)for(let j=i+1;j<movers.length;j++){let a=movers[i],b=movers[j];if(!circleCircle(a,b))continue;if(a.type==='projectile'||b.type==='projectile'){let p=a.type==='projectile'?a:b,t=p===a?b:a;if(t.type!=='base'&&p.owner!==t.id){p.active=false;t.hp-=20;emit('HIT',p.id,t.id);if(t.hp<=0&&t.active){t.active=false;emit('DEATH',t.id,p.owner||0)}}}else if(a.type!=='base'&&b.type!=='base'){let avx=a.vx;a.vx=b.vx*.8;b.vx=avx*.8;emit('COLLISION',a.id,b.id)}}
-    state.entities=state.entities.filter(x=>x.active||x.type==='wall'||x.type==='base');
-    replay.push({tick:state.tick,hash:stateHash(),events:state.events.map(x=>({...x}))});if(replay.length>30000)replay.shift();renderUI();
-  }
-  function stateHash(){let s=state.entities.map(e=>[e.id,e.type,Math.round((e.x||0)*1000),Math.round((e.y||0)*1000),Math.round((e.vx||0)*1000),Math.round((e.vy||0)*1000),e.hp??0,e.active?1:0].join(':')).join('|')+'#'+state.tick;let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(16).padStart(8,'0')}
-  function draw(){ctx.clearRect(0,0,W,H);ctx.fillStyle='#07101c';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#10263a';ctx.lineWidth=1;for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}
-    for(let e of state.entities){if(e.type==='wall'){ctx.fillStyle='#4c5968';ctx.fillRect(e.x,e.y,e.w,e.h);continue}let c=e.type==='player'?'#46c7ff':e.type==='enemy'?'#ff6b6b':e.type==='projectile'?'#ffd166':'#59df9f';ctx.beginPath();ctx.fillStyle=c;ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();if(e.type!=='projectile'){ctx.fillStyle='#08111c';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(e.type==='player'?'P':e.type==='enemy'?'E':'B',e.x,e.y+3)}}requestAnimationFrame(draw)}
-  function renderUI(){$('tick').textContent=state.tick;$('entities').textContent=state.entities.length;$('eventsN').textContent=state.events.length;$('hash').textContent=stateHash();$('replayCount').textContent=replay.length+' ticks';let box=$('events');for(let ev of state.events){let d=document.createElement('div');d.textContent=`t${ev.tick}  ${ev.type}  ${ev.a}${ev.b?' → '+ev.b:''}`;box.prepend(d)}while(box.children.length>80)box.lastChild.remove()}
-  function reset(){cancelAnimationFrame(raf);playing=false;$('play').textContent='▶ Play';replay=[];$('events').innerHTML='';state=makeWorld(+$('seed').value||1,$('scenario').value);renderUI()}
-  function loop(t){if(!playing)return;if(!last)last=t;acc+=Math.min(.05,(t-last)/1000);last=t;while(acc>=DT){update();acc-=DT}raf=requestAnimationFrame(loop)}
-  async function benchmark(){playing=false;$('play').textContent='▶ Play';$('benchStatus').textContent='Running…';await new Promise(r=>setTimeout(r,20));let seed=+$('seed').value||1,sc=$('scenario').value;let saved=state,savedReplay=replay;state=makeWorld(seed,sc);replay=[];let t0=performance.now();for(let i=0;i<5000;i++)update();let total=performance.now()-t0,h1=stateHash();state=makeWorld(seed,sc);replay=[];for(let i=0;i<5000;i++)update();let h2=stateHash();$('benchStatus').textContent='Done';$('benchTicks').textContent='5,000';$('benchTotal').textContent=total.toFixed(2)+' ms';$('benchPer').textContent=(total*1000/5000).toFixed(2);$('benchDet').textContent=h1===h2?'PASS':'FAIL';$('benchDet').className=h1===h2?'ok':'bad';state=saved;replay=savedReplay;renderUI()}
-  $('reset').onclick=reset;$('step').onclick=()=>{playing=false;$('play').textContent='▶ Play';update()};$('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'⏸ Pause':'▶ Play';last=0;if(playing)raf=requestAnimationFrame(loop)};$('bench').onclick=benchmark;$('scenario').onchange=reset;
-  $('export').onclick=()=>{let payload={engineVersion:'e0.1',seed:state.seed,scenario:state.scenario,dt:DT,replay};let blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`replay-${state.seed}-${state.scenario}.json`;a.click();URL.revokeObjectURL(a.href)};
-  reset();requestAnimationFrame(draw);
+  function circleCircle(a,b){let dx=a.x-b.x,dy=a.y-b.y,rr=a.r+b.r;return dx*dx+dy*dy<rr*rr}
+  function circleRect(c,r){let nx=Math.max(r.x,Math.min(c.x,r.x+r.w)),ny=Math.max(r.y,Math.min(c.y,r.y+r.h));let dx=c.x-nx,dy=c.y-ny;return dx*dx+dy*dy<c.r*c.r}
+  function spawnProjectile(x,y,vx,vy,owner){let p=entity(state.nextId++,'projectile',x,y,4);p.vx=vx;p.vy=vy;p.owner=owner;p.hp=1;state.entities.push(p);emit('เกิดโพรเจกไทล์',p.id,owner)}
+  function stateHash(){let s=state.entities.map(e=>[e.id,e.type,Math.round((e.x||0)*1000),Math.round((e.y||0)*1000),Math.round((e.vx||0)*1000),Math.round((e.vy||0)*1000),e.hp??0,e.active?1:0].join(':')).join('|')+'#'+state.tick,h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(16).padStart(8,'0')}
+  function update(){state.tick++;state.events=[];const player=state.entities.find(x=>x.type==='player');player.vx=48*Math.sin(state.tick*.013);player.vy=32*Math.cos(state.tick*.009);
+    if(state.scenario==='projectile'&&state.tick%10===0)spawnProjectile(900,40+(state.tick*37)%450,-260,0,99);
+    if(state.scenario==='dense'&&state.tick%22===0)spawnProjectile(160,270,250,((state.tick%3)-1)*60,1);
+    if(state.scenario==='baseline'&&state.tick%45===0){let en=state.entities.find(x=>x.type==='enemy'&&x.active);if(en){let dx=player.x-en.x,dy=player.y-en.y,d=Math.hypot(dx,dy)||1;spawnProjectile(en.x,en.y,dx/d*170,dy/d*170,en.id)}}
+    if(state.scenario==='quiet'&&state.tick===360){for(let q of state.entities)if(q.type==='enemy')q.vx=-110;emit('เปลี่ยนช่วง','เริ่มการต่อสู้')}
+    for(let a of state.entities){if(!a.active||a.type==='wall'||a.type==='base')continue;a.x+=a.vx*DT;a.y+=a.vy*DT;if(a.type==='enemy'){let dx=player.x-a.x,dy=player.y-a.y,d=Math.hypot(dx,dy)||1;a.vx+=dx/d*10*DT;a.vy+=dy/d*10*DT}if(a.x<-30||a.x>W+30||a.y<-30||a.y>H+30){a.active=false;emit('ออกจากโลก',a.id)}}
+    const walls=state.entities.filter(x=>x.type==='wall');for(let a of state.entities){if(!a.active||!a.r||a.type==='projectile')continue;for(let w of walls)if(circleRect(a,w)){a.x-=a.vx*DT;a.y-=a.vy*DT;a.vx*=-.55;a.vy*=-.55;emit('ชนกำแพง',a.id,w.id)}}
+    const m=state.entities.filter(x=>x.active&&x.r&&x.type!=='wall');for(let i=0;i<m.length;i++)for(let j=i+1;j<m.length;j++){let a=m[i],b=m[j];if(!circleCircle(a,b))continue;if(a.type==='projectile'||b.type==='projectile'){let p=a.type==='projectile'?a:b,t=p===a?b:a;if(t.type!=='base'&&p.owner!==t.id){p.active=false;t.hp-=20;emit('โจมตีโดน',p.id,t.id);if(t.hp<=0&&t.active){t.active=false;emit('ตาย',t.id,p.owner||0)}}}else if(a.type!=='base'&&b.type!=='base'){let av=a.vx;a.vx=b.vx*.8;b.vx=av*.8;emit('ชนกัน',a.id,b.id)}}
+    state.entities=state.entities.filter(x=>x.active||x.type==='wall'||x.type==='base');replay.push({tick:state.tick,hash:stateHash(),events:state.events.map(x=>({...x}))});if(replay.length>30000)replay.shift();renderUI()}
+  function draw(){ctx.clearRect(0,0,W,H);ctx.fillStyle='#07101c';ctx.fillRect(0,0,W,H);ctx.strokeStyle='#10263a';for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke()}for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke()}for(let e of state.entities){if(e.type==='wall'){ctx.fillStyle='#4c5968';ctx.fillRect(e.x,e.y,e.w,e.h);continue}let c=e.type==='player'?'#46c7ff':e.type==='enemy'?'#ff6b6b':e.type==='projectile'?'#ffd166':'#59df9f';ctx.beginPath();ctx.fillStyle=c;ctx.arc(e.x,e.y,e.r,0,Math.PI*2);ctx.fill();if(e.type!=='projectile'){ctx.fillStyle='#08111c';ctx.font='10px system-ui';ctx.textAlign='center';ctx.fillText(e.type==='player'?'ผ':e.type==='enemy'?'ศ':'ฐ',e.x,e.y+3)}}requestAnimationFrame(draw)}
+  function renderUI(){$('tick').textContent=state.tick;$('entities').textContent=state.entities.length;$('eventsN').textContent=state.events.length;$('hash').textContent=stateHash();$('replayCount').textContent=replay.length+' ติ๊ก';const box=$('events');if(state.events.length){for(const e of state.events){const d=document.createElement('div');d.textContent=`ติ๊ก ${e.tick}: ${e.type} ${e.a??''} ${e.b??''}`;box.prepend(d)}while(box.children.length>60)box.removeChild(box.lastChild)}}
+  function reset(){playing=false;$('play').textContent='▶ เล่น';replay=[];$('events').innerHTML='';state=makeWorld(Number($('seed').value)||42,$('scenario').value);renderUI()}
+  function frame(t){if(!last)last=t;let dt=Math.min(.05,(t-last)/1000);last=t;if(playing){acc+=dt;while(acc>=DT){update();acc-=DT}}requestAnimationFrame(frame)}
+  $('reset').onclick=reset;$('step').onclick=()=>update();$('play').onclick=()=>{playing=!playing;$('play').textContent=playing?'⏸ หยุดชั่วคราว':'▶ เล่น'};
+  $('bench').onclick=()=>{const seed=Number($('seed').value)||42,sc=$('scenario').value,old=state,oldRep=replay;let run=()=>{state=makeWorld(seed,sc);replay=[];let t0=performance.now();for(let i=0;i<5000;i++)update();return{ms:performance.now()-t0,hash:stateHash()}};let a=run(),b=run();$('benchStatus').textContent='ทดสอบแล้ว';$('benchTicks').textContent='5,000';$('benchTotal').textContent=a.ms.toFixed(2)+' มิลลิวินาที';$('benchPer').textContent=(a.ms*1000/5000).toFixed(2);$('benchDet').textContent=a.hash===b.hash?'ตรงกัน':'ไม่ตรง';$('benchDet').className=a.hash===b.hash?'ok':'bad';state=old;replay=oldRep;renderUI()};
+  $('export').onclick=()=>{const data={seed:state.seed,scenario:state.scenario,dt:DT,ticks:replay};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='ข้อมูลเล่นซ้ำ.json';a.click();URL.revokeObjectURL(a.href)};
+  reset();requestAnimationFrame(frame);draw();
 })();
 </script>
 </body>
