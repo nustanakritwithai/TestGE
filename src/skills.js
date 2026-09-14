@@ -1,4 +1,5 @@
 import {cloneWorld,buildRelations,applyBounds,makeProposal} from './world.js';
+import {TrainedGraphSkill} from './learned.js';
 
 export class ComputeSkill{
   constructor(id,label){this.id=id;this.label=label;this.approved=true}
@@ -23,7 +24,7 @@ export class ApproxClassicalSkill extends ComputeSkill{
 
 export class ResearchSkill extends ComputeSkill{
   constructor(id,label){super(id,label);this.approved=false}
-  run(){throw new Error(`${this.label} ยังเป็น Research Slot และยังไม่ได้รับอนุมัติจาก benchmark`)}
+  run(){throw new Error(`${this.label} ยังไม่มี trained checkpoint`)}
 }
 
 export const registry={
@@ -32,6 +33,14 @@ export const registry={
   gnn:new ResearchSkill('gnn','GNN'),
   residual:new ResearchSkill('residual','Residual GNN')
 };
+
+export function installTrainedModels(models){
+  registry.gnn=new TrainedGraphSkill({id:'gnn',label:'GNN ที่ฝึกแล้ว',weights:models.gnn,residual:false});
+  registry.residual=new TrainedGraphSkill({id:'residual',label:'Residual GNN ที่ฝึกแล้ว',weights:models.residual,residual:true,approxSkill:registry.approx});
+  return registry;
+}
+
+export function setApproval(id,approved){if(registry[id])registry[id].approved=!!approved;}
 
 export function verifyProposal(world,proposal,{critical=false}={}){
   if(!proposal||!Array.isArray(proposal.stateDelta))return {ok:false,reason:'โครงสร้างผลลัพธ์ไม่ถูกต้อง'};
