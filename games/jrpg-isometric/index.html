@@ -11,9 +11,9 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><div><h1>⚔️ TWA JRPG — Fantasy Battle Arena</h1><div class="muted">Turn-based JRPG · Tactical terrain · Free movement · Isometric 3D</div></div><a href="../deep-duel/" style="color:#e6bb73">Deep Duel Lab</a></div>
+  <div class="top"><div><h1>⚔️ TWA JRPG — Fantasy Battle Arena</h1><div class="muted">Turn-based JRPG · Stat System v1 · Tactical terrain · Isometric 3D</div></div><a href="../deep-duel/" style="color:#e6bb73">Deep Duel Lab</a></div>
   <div class="battle"><div id="viewport" class="viewport"></div><div id="turnBadge" class="turnBadge">เตรียมการต่อสู้</div></div>
-  <div class="guide"><b>Movement v3:</b> พื้นที่สูงให้ High Ground, ทางหินเดินถูกกว่า, โคลนใช้ Movement Point มากขึ้น, เสาและกองหินขวางทางจริง, สามารถ Jump/Drop ระหว่างระดับความสูง และเมื่อถอนตัวออกจาก Zone of Control จะเสี่ยง Attack of Opportunity</div>
+  <div class="guide"><b>Stat System v1:</b> STR / VIT / DEX / INT / WIS / AGI สร้าง Combat และ Tactical Stats อัตโนมัติ แล้ว Terrain, Height และ Stamina จะปรับค่าจริงระหว่างต่อสู้ เช่น Move, Jump, Accuracy และ Evasion</div>
   <div class="hudRow">
     <div class="panel"><div class="name">อัศวินแห่งรุ่งอรุณ</div><div id="playerState" class="muted"></div>
       <div class="stat"><span>HP</span><div class="bar"><div id="pHPBar" class="fill hp"></div></div><b id="pHP"></b></div>
@@ -36,8 +36,8 @@
     <div class="panel"><b>รายละเอียดคำสั่ง</b><div id="subCommands" class="sub" style="margin-top:8px"></div></div>
   </div>
   <div class="panel" style="margin-top:8px"><div id="result" class="result"></div><b>Battle Log</b><div id="log" class="log"></div></div>
-  <div class="footer"><span class="chip">Height / High Ground</span><span class="chip">Terrain Cost</span><span class="chip">Obstacle Collision</span><span class="chip">Jump / Drop</span><span class="chip">Zone of Control</span><span class="chip">Attack of Opportunity</span><span class="chip">Flank / Back Attack</span></div>
+  <div class="footer"><span class="chip">STR / VIT / DEX</span><span class="chip">INT / WIS / AGI</span><span class="chip">Derived Combat Stats</span><span class="chip">Dynamic Move / Jump</span><span class="chip">Terrain Modifiers</span><span class="chip">Height Bonus</span><span class="chip">Stamina Fatigue</span></div>
 </div>
-<script type="module" src="./battle-v3.js"></script>
+<script type="module" src="./battle-v4.js"></script>
 </body>
 </html>
