@@ -42,10 +42,10 @@ function caseFeatures(c){
 }
 
 const QUALITY=.08,MAX_IT=20,MIN_IT=1,F=14;
-function oracleIterations(c){const ref=solveIterative(c,MAX_IT);for(let k=MIN_IT;k<=MAX_IT;k++)if(rmse(ref,solveIterative(c,k))<=QUALITY)return k;return MAX_IT;}
+function oracleIterationsAt(c,quality=QUALITY){const ref=solveIterative(c,MAX_IT);for(let k=MIN_IT;k<=MAX_IT;k++)if(rmse(ref,solveIterative(c,k))<=quality)return k;return MAX_IT;}
 function zeroW(){return new Float64Array(F)}
 function dot(w,x){let s=0;for(let i=0;i<F;i++)s+=w[i]*x[i];return s}
-function trainScheduler(cases,{epochs=80,lr=.02}={}){const W=zeroW(),samples=cases.map(c=>({x:caseFeatures(c),y:oracleIterations(c)/MAX_IT}));for(let ep=0;ep<epochs;ep++){const eta=lr/(1+ep*.03);for(const s of samples){const e=dot(W,s.x)-s.y;for(let j=0;j<F;j++)W[j]-=eta*(2*e*s.x[j]+1e-5*W[j]);}}return {W,samples:samples.length,epochs,lr};}
+function trainScheduler(cases,{epochs=80,lr=.02}={}){const W=zeroW(),samples=cases.map(c=>({x:caseFeatures(c),y:oracleIterationsAt(c)/MAX_IT}));for(let ep=0;ep<epochs;ep++){const eta=lr/(1+ep*.03);for(const s of samples){const e=dot(W,s.x)-s.y;for(let j=0;j<F;j++)W[j]-=eta*(2*e*s.x[j]+1e-5*W[j]);}}return {W,samples:samples.length,epochs,lr};}
 function predictIterations(c,model,margin=0){const raw=Math.ceil(Math.max(MIN_IT,Math.min(MAX_IT,dot(model.W,caseFeatures(c))*MAX_IT)));return Math.min(MAX_IT,raw+margin)}
 function calibrateMargin(validation,model){for(let margin=0;margin<=8;margin++){let ok=0;for(const c of validation){const ref=solveIterative(c,MAX_IT),k=predictIterations(c,model,margin);if(rmse(ref,solveIterative(c,k))<=QUALITY)ok++;}if(ok/validation.length>=.99)return margin;}return 8;}
 
@@ -64,24 +64,29 @@ const suites=[
   {id:'topology',label:'Hub topology OOD',counts:[128,256,512],seeds:[8101,8102,8103],speed:1.4,dense:.85,topology:'hub'}
 ];
 
-const results=[];
-for(const s of suites){const cases=[];for(const contacts of s.counts)for(const seed of s.seeds)cases.push(makeCase({seed:seed+contacts,contacts,speed:s.speed,dense:s.dense,restitution:s.restitution??.15,friction:s.friction??.08,topology:s.topology??'local'}));
+const results=[];const allEvalCases=[];
+for(const s of suites){const cases=[];for(const contacts of s.counts)for(const seed of s.seeds)cases.push(makeCase({seed:seed+contacts,contacts,speed:s.speed,dense:s.dense,restitution:s.restitution??.15,friction:s.friction??.08,topology:s.topology??'local'}));allEvalCases.push(...cases);
+  // Precompute oracle iteration counts OUTSIDE timed region. This measures the runtime of the resulting ideal schedule, not the cost of discovering it.
+  const oracleKs=cases.map(c=>oracleIterationsAt(c));const oracleMap=new Map(cases.map((c,i)=>[c,oracleKs[i]]));
   const exact=timed(c=>({state:solveIterative(c,MAX_IT),iterations:MAX_IT}),cases,10);
-  const oracle=timed(c=>{const k=oracleIterations(c);return {state:solveIterative(c,k),iterations:k}},cases,10);
+  const oracle=timed(c=>{const k=oracleMap.get(c);return {state:solveIterative(c,k),iterations:k}},cases,10);
   const learned=timed(c=>{const k=predictIterations(c,model,margin);return {state:solveIterative(c,k),iterations:k}},cases,10);
   const fixedCandidates=[4,6,8,10,12,14,16,18];let bestFixed=null;for(const k of fixedCandidates){const b=timed(c=>({state:solveIterative(c,k),iterations:k}),cases,5);if(b.maxError<=QUALITY&&(bestFixed===null||b.p95<bestFixed.p95))bestFixed={k,...b};}
   const gain=(exact.p95-learned.p95)/exact.p95,oracleGain=(exact.p95-oracle.p95)/exact.p95;const quality=learned.maxError<=QUALITY;const speed=gain>=.20;
-  results.push({suite:s.id,label:s.label,cases:cases.length,exact,oracle,learned,bestFixed,oracleGain,gain,qualityPass:quality,speedPass:speed,pass:quality&&speed,deterministic:deterministic(c=>{const k=predictIterations(c,model,margin);return {state:solveIterative(c,k),iterations:k}},cases[0]),eventMismatch:0,criticalMiss:0});
+  results.push({suite:s.id,label:s.label,cases:cases.length,oracleIterationRange:[Math.min(...oracleKs),Math.max(...oracleKs)],exact,oracle,learned,bestFixed,oracleGain,gain,qualityPass:quality,speedPass:speed,pass:quality&&speed,deterministic:deterministic(c=>{const k=predictIterations(c,model,margin);return {state:solveIterative(c,k),iterations:k}},cases[0]),eventMismatch:0,criticalMiss:0});
 }
 
-// Rollout stress: chain 20 consecutive solver calls, using deterministic velocity perturbations between steps.
-function rolloutCase(seed=9901,contacts=256){const base=makeCase({seed,contacts,speed:1.5,dense:.9});let exactBodies=cloneBodies(base.bodies),learnBodies=cloneBodies(base.bodies);const R=rng(seed+999);let worst=0,sum=0;for(let t=0;t<20;t++){for(let i=0;i<base.bodies.length;i++){const dv=(R()-.5)*.04;exactBodies[i].vx+=dv;learnBodies[i].vx+=dv*.999;}const exCase={...base,bodies:exactBodies},leCase={...base,bodies:learnBodies};exactBodies=solveIterative(exCase,MAX_IT);const k=predictIterations(leCase,model,margin);learnBodies=solveIterative(leCase,k);const e=rmse(exactBodies,learnBodies);worst=Math.max(worst,e);sum+=e;}return {meanRmse:sum/20,maxRmse:worst,pass:worst<=.16};}
+// Rollout stress: 20 consecutive solves with IDENTICAL external perturbations on exact and learned paths.
+function rolloutCase(seed=9901,contacts=256){const base=makeCase({seed,contacts,speed:1.5,dense:.9});let exactBodies=cloneBodies(base.bodies),learnBodies=cloneBodies(base.bodies);const R=rng(seed+999);let worst=0,sum=0;for(let t=0;t<20;t++){for(let i=0;i<base.bodies.length;i++){const dv=(R()-.5)*.04;exactBodies[i].vx+=dv;learnBodies[i].vx+=dv;}const exCase={...base,bodies:exactBodies},leCase={...base,bodies:learnBodies};exactBodies=solveIterative(exCase,MAX_IT);const k=predictIterations(leCase,model,margin);learnBodies=solveIterative(leCase,k);const e=rmse(exactBodies,learnBodies);worst=Math.max(worst,e);sum+=e;}return {meanRmse:sum/20,maxRmse:worst,pass:worst<=.16};}
 const rollout=[9901,9902,9903,9904,9905].map(s=>rolloutCase(s,256));
 
 // Scheduler prediction diagnostics versus oracle iterations.
-const diagCases=buildTrain(30000,100);const predErr=[],under=[];for(const c of diagCases){const o=oracleIterations(c),p=predictIterations(c,model,margin);predErr.push(Math.abs(p-o));under.push(p<o?1:0)}
+const diagCases=buildTrain(30000,100);const predErr=[],under=[];for(const c of diagCases){const o=oracleIterationsAt(c),p=predictIterations(c,model,margin);predErr.push(Math.abs(p-o));under.push(p<o?1:0)}
 const diagnostics={meanAbsIterationError:mean(predErr),p95AbsIterationError:pct(predErr,.95),underPredictionRate:mean(under),margin};
 
+// Quality sensitivity: does iteration scheduling become useful if the application tolerates a looser solver error budget?
+const sensitivity=[.08,.16,.32,.64].map(q=>{const ks=allEvalCases.map(c=>oracleIterationsAt(c,q));return {quality:q,meanOracleIterations:mean(ks),minIterations:Math.min(...ks),maxIterations:Math.max(...ks),fractionAtOrBelow16:mean(ks.map(k=>k<=16?1:0)),iterationHeadroom:1-mean(ks)/MAX_IT};});
+
 const anyPass=results.some(x=>x.pass),oracleHasHeadroom=results.some(x=>x.oracleGain>=.20),allSafe=results.every(x=>x.eventMismatch===0&&x.criticalMiss===0&&x.deterministic),rolloutPass=rollout.every(x=>x.pass);
-const report={version:'learned-relaxation-v1',model:{samples:model.samples,epochs:model.epochs,lr:model.lr,calibratedMargin:margin},thresholds:{oneStepMaxRmse:QUALITY,requiredP95Gain:.20,eventMismatch:0,criticalMiss:0,rolloutMaxRmse:.16},diagnostics,results,rollout,decision:{oracleHasHeadroom,anyCompetenceRegion:anyPass,allSafetyChecksPass:allSafe,rolloutPass,next:anyPass&&allSafe&&rolloutPass?'LEARNED_RELAXATION_CANDIDATE':'KEEP_CLASSICAL_V1'}};
+const report={version:'learned-relaxation-v2-validated',model:{samples:model.samples,epochs:model.epochs,lr:model.lr,calibratedMargin:margin},thresholds:{oneStepMaxRmse:QUALITY,requiredP95Gain:.20,eventMismatch:0,criticalMiss:0,rolloutMaxRmse:.16},diagnostics,sensitivity,results,rollout,decision:{oracleHasHeadroom,anyCompetenceRegion:anyPass,allSafetyChecksPass:allSafe,rolloutPass,next:anyPass&&allSafe&&rolloutPass?'LEARNED_RELAXATION_CANDIDATE':'KEEP_CLASSICAL_V1'}};
 console.log('TESTGE_LEARNED_RELAXATION_BEGIN');console.log(JSON.stringify(report,null,2));console.log('TESTGE_LEARNED_RELAXATION_END');console.log('FINAL_LEARNED_RELAXATION_DECISION='+report.decision.next);
