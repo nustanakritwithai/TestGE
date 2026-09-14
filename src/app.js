@@ -1,10 +1,8 @@
 import {createWorld,cloneWorld,commitProposal,stateHash} from './world.js';
-import {registry,verifyProposal,installTrainedModels,setApproval} from './skills.js';
-import {trainGraphModels} from './learned.js';
-import {runDecisiveBenchmark,summarizeDecision} from './benchmark.js';
+import {registry,verifyProposal,researchArchive} from './skills.js';
 
 const $=id=>document.getElementById(id);
-let world=createWorld(), trainedMeta=null;
+let world=createWorld(),timer=null,lastMode='exact';
 
 function draw(){
   const c=$('view'),g=c.getContext('2d');g.clearRect(0,0,c.width,c.height);g.fillStyle='#07111f';g.fillRect(0,0,c.width,c.height);
@@ -12,33 +10,13 @@ function draw(){
   for(const e of world.entities){const x=(e.x+1)*.5*c.width,y=(e.y+1)*.5*c.height;g.beginPath();g.arc(x,y,Math.max(3,e.r*260),0,Math.PI*2);g.fillStyle=e.type==='player'?'#48c9ff':'#ff6b6b';g.fill()}
   $('tick').textContent=world.tick;$('hash').textContent=stateHash(world);$('events').textContent=world.events.length;$('relations').textContent=world.relations.length;
 }
-
-function reset(){world=createWorld({seed:+$('seed').value,count:+$('count').value,density:+$('density').value,speed:+$('speed').value});draw();$('log').textContent='รีเซ็ตโลกแล้ว';}
-
-function step(skillId){const skill=registry[skillId];try{const request={world:cloneWorld(world),actions:world.actions,relations:world.relations,parameters:world.parameters,budget:{},criticality:+$('critical').value};const t0=performance.now();let p=skill.run(request);const ms=performance.now()-t0;const check=verifyProposal(world,p,{critical:+$('critical').value>=3});if(!check.ok){p=registry.exact.run({world:cloneWorld(world)});$('log').textContent=`${skill.label} ไม่ผ่าน verifier (${check.reason}) → fallback Exact`;}else $('log').textContent=`${skill.label} ผ่าน verifier • ${ms.toFixed(3)} ms`;commitProposal(world,p);draw();}catch(e){$('log').textContent=e.message;}}
-
-function train(){
-  $('trainStatus').textContent='กำลังฝึก...';
-  const t0=performance.now();
-  const models=trainGraphModels(registry.exact,registry.approx,{episodes:+$('episodes').value,epochs:+$('epochs').value,lr:+$('lr').value,count:64,density:.55,speed:1.1,seed:7001});
-  installTrainedModels(models);trainedMeta=models.meta;
-  const ms=performance.now()-t0;
-  $('trainStatus').textContent=`ฝึกแล้ว ${models.meta.samples.toLocaleString()} ตัวอย่าง • ${ms.toFixed(0)} ms`;
-  $('gnnState').textContent='ฝึกแล้ว / รอพิสูจน์';$('resState').textContent='ฝึกแล้ว / รอพิสูจน์';
+function reset(){stop();world=createWorld({seed:+$('seed').value,count:+$('count').value,density:+$('density').value,speed:+$('speed').value});draw();$('log').textContent='รีเซ็ตโลกแล้ว';}
+function step(skillId){lastMode=skillId;const skill=registry[skillId];const request={world:cloneWorld(world),actions:world.actions,relations:world.relations,parameters:world.parameters,budget:{},criticality:+$('critical').value};const t0=performance.now();let p=skill.run(request);const ms=performance.now()-t0;const check=verifyProposal(world,p,{critical:+$('critical').value>=3});if(!check.ok){p=registry.exact.run({world:cloneWorld(world)});$('log').textContent=`${skill.label} ไม่ผ่าน verifier (${check.reason}) → fallback Exact`;}else $('log').textContent=`${skill.label} • ${ms.toFixed(3)} ms • verifier PASS`;commitProposal(world,p);draw();}
+function play(){if(timer)return;const hz=+$('hz').value;timer=setInterval(()=>step(lastMode),1000/hz);$('runState').textContent=`RUN ${hz} Hz`;}
+function stop(){if(timer){clearInterval(timer);timer=null}$('runState').textContent='STOP';}
+function benchmark(){const reps=+$('reps').value,seeds=+$('seeds').value;const rows=[];for(const count of [24,96,192])for(const skillId of ['exact','approx']){const times=[];let mismatches=0;for(let s=0;s<seeds;s++){const base=createWorld({seed:1000+s+count,count,density:count>100?.75:count>50?.45:.18,speed:1});const ref=registry.exact.run({world:cloneWorld(base)});for(let r=0;r<reps;r++){const w=cloneWorld(base),t0=performance.now(),out=registry[skillId].run({world:w}),t1=performance.now();times.push(t1-t0);if(skillId==='approx'&&JSON.stringify(out.events)!==JSON.stringify(ref.events))mismatches++;}}times.sort((a,b)=>a-b);const p=x=>times[Math.floor((times.length-1)*x)];rows.push({count,skillId,p50:p(.5),p95:p(.95),p99:p(.99),mismatch:mismatches/(reps*seeds)});} $('benchRows').innerHTML=rows.map(r=>`<tr><td>${r.count}</td><td>${registry[r.skillId].label}</td><td>${r.p50.toFixed(4)}</td><td>${r.p95.toFixed(4)}</td><td>${r.p99.toFixed(4)}</td><td>${(r.mismatch*100).toFixed(1)}%</td></tr>`).join('');
 }
+function determinism(){const seed=+$('seed').value,count=+$('count').value,density=+$('density').value,speed=+$('speed').value;const run=()=>{let w=createWorld({seed,count,density,speed});for(let i=0;i<120;i++)commitProposal(w,registry.exact.run({world:cloneWorld(w)}));return stateHash(w)};const a=run(),b=run(),ok=a===b;$('determinism').textContent=ok?`PASS ${a}`:`FAIL ${a} / ${b}`;$('determinism').className=ok?'ok':'bad';}
+function renderArchive(){$('archive').innerHTML=researchArchive.map(x=>`<div class="card"><b>${x.id}</b> — <span class="bad">${x.status}</span><div class="muted">${x.reason}</div></div>`).join('');}
 
-function benchmark(){
-  const rows=runDecisiveBenchmark(registry,{reps:+$('reps').value,seeds:+$('seeds').value});$('benchRows').innerHTML='';
-  for(const row of rows)for(const r of row.results){const tr=document.createElement('tr');tr.innerHTML=`<td>${row.spec.label}</td><td>${r.label}</td><td>${r.error.toFixed(5)}</td><td>${(r.eventMismatch*100).toFixed(1)}%</td><td>${r.p50.toFixed(4)}</td><td>${r.p95.toFixed(4)}</td><td>${r.p99.toFixed(4)}</td>`;$('benchRows').appendChild(tr)}
-  const s=summarizeDecision(rows,{requiredGain:.20});
-  setApproval('gnn',false);setApproval('residual',false);
-  let html='<b>ผลชี้ขาด:</b><br>';
-  for(const d of s.decisions){const gain=Number.isFinite(d.learnedGain)?(d.learnedGain*100).toFixed(1)+'%':'ไม่มี learned ที่ผ่านคุณภาพ';html+=`${d.workload}: Classical=${d.classical} • Learned=${d.learned} • Gain=${gain} • ${d.passLearned?'PASS':'FAIL'}<br>`;}
-  if(s.learnedApproved){html+='<br><b class="ok">มีอย่างน้อย 1 competence region ที่ Learned ชนะ ≥20% → อนุญาตให้วิจัย Hybrid ต่อ</b>';for(const row of rows){for(const r of row.results){if((r.skill==='gnn'||r.skill==='residual')&&r.error<=.05&&r.eventMismatch<=.25){const classical=row.results.filter(x=>x.skill==='exact'||x.skill==='approx').filter(x=>x.error<=.05&&x.eventMismatch<=.25).sort((a,b)=>a.p95-b.p95)[0];if(classical&&(classical.p95-r.p95)/classical.p95>=.20)setApproval(r.skill,true);}}}}
-  else html+='<br><b class="bad">ยังไม่มี Learned Skill ชนะ ≥20% → V1 คง Classical เท่านั้น</b>';
-  $('decision').innerHTML=html;
-  $('gnnState').textContent=registry.gnn.approved?'ผ่าน Gate':'ยังไม่ผ่าน Gate';$('resState').textContent=registry.residual.approved?'ผ่าน Gate':'ยังไม่ผ่าน Gate';
-  localStorage.setItem('testge_learned_decision_v1',JSON.stringify({time:new Date().toISOString(),meta:trainedMeta,rows,summary:s}));
-}
-
-$('reset').onclick=reset;$('stepExact').onclick=()=>step('exact');$('stepApprox').onclick=()=>step('approx');$('stepGnn').onclick=()=>step('gnn');$('stepResidual').onclick=()=>step('residual');$('trainModels').onclick=train;$('runBench').onclick=benchmark;reset();
+$('reset').onclick=reset;$('stepExact').onclick=()=>step('exact');$('stepApprox').onclick=()=>step('approx');$('play').onclick=play;$('stop').onclick=stop;$('runBench').onclick=benchmark;$('runDet').onclick=determinism;renderArchive();reset();
