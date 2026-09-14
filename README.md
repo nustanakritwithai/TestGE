@@ -1,45 +1,84 @@
-# TestGE — Agentic Adaptive Game Compute Engine
+# TestGE — Transactional World Architecture (TWA)
 
-Prototype research repository for **E0: Ground Truth Compute Arena**.
+TestGE เป็น **Deterministic, Data-Oriented, Transactional, Verifiable, Authoritative World Runtime** สำหรับเกมและ simulation ที่ต้องการ World Truth กลาง, rollback/replay, replication และการตรวจสอบย้อนหลังได้
 
-## Current milestone
+## TWA V1 Architecture
 
-This repository currently contains the deterministic browser-based arena used as the foundation for the research plan:
+```text
+Input / Commands
+      ↓
+Canonical Snapshot
+      ↓
+Parallel Compute Workers
+      ↓
+Proposal / WriteSet
+      ↓
+Deterministic Conflict Resolution
+      ↓
+Verification
+      ↓
+Atomic Commit
+      ↓
+Unified Delta Log
+      ├─ Rollback / Replay / Time Travel
+      ├─ Delta Replication
+      └─ Audit / Debugging
+```
 
-- Fixed timestep: 1/60 s
-- Seeded deterministic scenarios
-- Stable entity IDs
-- Player / Enemy / Projectile / Wall / Base
-- Movement, collision, projectile hit, damage, death, spawn/despawn
-- Replay capture/export
-- State hash for repeatability checks
-- 5,000-tick benchmark skeleton
-- Scenario presets: Baseline, Projectile Storm, Dense Contact, Long Quiet → Combat
+หลักการสำคัญ: Compute system ไม่มีสิทธิ์แก้ Canonical World โดยตรง ทุกการเปลี่ยนแปลงต้องผ่าน Proposal → Verify → Commit
 
-## Why E0 comes first
+## สถานะ V1
 
-Before building GNNs, residual models, routers, capability models, or adaptive control, the project needs one stable reference world. E0 provides that reference and makes later skills comparable on the same scenarios.
+- ✅ Data-Oriented World / TypedArray storage
+- ✅ Logical Snapshot
+- ✅ Proposal / WriteSet
+- ✅ Deterministic Conflict Resolver
+- ✅ Hierarchical verification baseline
+- ✅ Atomic Commit Authority
+- ✅ Unified Delta Log
+- ✅ Checkpoint / Multi-step Rollback / Replay
+- ✅ Time-Travel Audit
+- ✅ Transactional Spawn / Despawn + Generation
+- ✅ Canonical Input / Event Log
+- ✅ Parallel Web Worker Task Graph
+- ✅ Delta Replication + Interest Filtering
+- ✅ Client Prediction / Reconciliation demo
+- ✅ Public Engine API (`src/twa-engine.js`)
+- ✅ Browser Regression Suite
+- ✅ TWA V1 Playable Runtime Demo
 
-## Planned research order
+## Public Engine API
 
-1. **E0** Ground Truth Arena
-2. **E1** Exact + Approximate Classical skills
-3. **E2** Tiny MLP sanity baseline
-4. **E3** Message-Passing GNN
-5. **E4** Residual GNN
-6. **E5** Skill Frontier benchmark
-7. **E6** Oracle Router + Adaptation Headroom
-8. Compare against Expert-Tuned Fixed Hybrid
-9. Only then decide whether dynamic routing is worth building
+```js
+import {createEngine} from './src/twa-engine.js';
+
+const engine = createEngine({seed: 42, count: 64, workers: 2});
+engine.submit('impulse', {entity: 0, dvx: .2, dvy: 0});
+const result = await engine.step({parallel: true, mode: 'exact', critical: true});
+
+console.log(engine.tick, engine.version, engine.hash);
+
+engine.checkpoint('before-combat');
+engine.rollback(30);
+engine.replay(30);
+```
+
+Replication:
+
+```js
+engine.createClient('player-1', {mode:'radius', x:0, y:0, radius:.75});
+engine.bootstrapClient('player-1');
+await engine.step();
+engine.replicateLatest('player-1');
+```
 
 ## GitHub Pages
 
-The repository includes a GitHub Pages workflow. After Pages is enabled with **GitHub Actions** as the source, pushes to `main` deploy the static arena automatically.
+- Main Runtime: https://nustanakritwithai.github.io/TestGE/
+- TWA V1 Playable Demo: https://nustanakritwithai.github.io/TestGE/v1-demo.html
+- Regression Suite: https://nustanakritwithai.github.io/TestGE/regression.html
+- Client Prediction Demo: https://nustanakritwithai.github.io/TestGE/prediction.html
 
-Expected Pages URL:
+## V1 Definition
 
-`https://nustanakritwithai.github.io/TestGE/`
-
-## Research principle
-
-The project does **not** assume that adaptive or neural computation must win. If a single skill or an expert-tuned fixed hybrid dominates the skill frontier, adaptive routing should be removed rather than forced into the architecture.
+TWA V1 ถือว่าเป็น runtime architecture ที่ล็อกแล้ว ไม่ย้อนกลับไปเปิดการแข่งขัน GNN / learned physics / adaptive router ใน core. Learned/approximate compute สามารถกลับมาได้ในอนาคตในฐานะ **Compute Backend Candidate** แต่ต้องผ่าน authority contract เดียวกันและไม่มีสิทธิ์ bypass verifier/commit gate.
