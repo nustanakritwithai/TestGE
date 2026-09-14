@@ -1,13 +1,19 @@
 const ACTIONS = [
-  {id:'QUICK_ATTACK',label:'Quick Attack',cost:12,damage:70,posture:8,tempo:7,commit:45,kind:'attack'},
-  {id:'HEAVY_ATTACK',label:'Heavy Attack',cost:24,damage:145,posture:20,tempo:11,commit:90,kind:'attack'},
-  {id:'GUARD_BREAK',label:'Guard Break',cost:18,damage:35,posture:34,tempo:14,commit:70,kind:'attack'},
-  {id:'BLOCK',label:'Block',cost:8,damage:0,posture:0,tempo:2,commit:35,kind:'defense'},
-  {id:'DODGE',label:'Dodge',cost:14,damage:0,posture:0,tempo:5,commit:55,kind:'defense'},
-  {id:'PARRY',label:'Parry',cost:16,damage:0,posture:0,tempo:9,commit:75,kind:'defense'},
-  {id:'FEINT',label:'Feint',cost:9,damage:0,posture:4,tempo:10,commit:30,kind:'setup'},
-  {id:'RECOVER',label:'Recover',cost:-24,damage:0,posture:-12,tempo:-4,commit:20,kind:'recover'}
+  {id:'QUICK_ATTACK',label:'โจมตีเร็ว',cost:12,damage:70,posture:8,tempo:7,commit:45,kind:'attack'},
+  {id:'HEAVY_ATTACK',label:'โจมตีหนัก',cost:24,damage:145,posture:20,tempo:11,commit:90,kind:'attack'},
+  {id:'GUARD_BREAK',label:'ทำลายการ์ด',cost:18,damage:35,posture:34,tempo:14,commit:70,kind:'attack'},
+  {id:'BLOCK',label:'บล็อก',cost:8,damage:0,posture:0,tempo:2,commit:35,kind:'defense'},
+  {id:'DODGE',label:'หลบ',cost:14,damage:0,posture:0,tempo:5,commit:55,kind:'defense'},
+  {id:'PARRY',label:'ปัดป้อง',cost:16,damage:0,posture:0,tempo:9,commit:75,kind:'defense'},
+  {id:'FEINT',label:'หลอกโจมตี',cost:9,damage:0,posture:4,tempo:10,commit:30,kind:'setup'},
+  {id:'RECOVER',label:'ฟื้นตัว',cost:-24,damage:0,posture:-12,tempo:-4,commit:20,kind:'recover'}
 ];
+
+const ACTION_NAMES = Object.fromEntries(ACTIONS.map(a=>[a.id,a.label]));
+const INTENT_NAMES = {
+  TEST:'ทดสอบคู่ต่อสู้', DAMAGE:'ทำความเสียหาย', BREAK:'ทำลายการป้องกัน', BAIT:'ล่อให้ตอบสนอง',
+  CONTROL:'ควบคุมจังหวะ', RECOVER:'ฟื้นทรัพยากร', FINISH:'ปิดฉาก', SURVIVE:'เอาตัวรอด'
+};
 
 const $ = id => document.getElementById(id);
 const clamp = (v,min,max)=>Math.max(min,Math.min(max,v));
@@ -30,9 +36,9 @@ let A,B,turn=0,running=true,timer=null,speed=1,finished=false,history=[];
 
 function reset(){
   rngState = seedBase >>> 0; turn=0; finished=false; history=[];
-  A=fighter('KNIGHT','a',1000,108,112,92);
-  B=fighter('SAMURAI','b',900,116,96,108);
-  log(`Seed ${seedBase} — deterministic duel initialized`);
+  A=fighter('อัศวิน','a',1000,108,112,92);
+  B=fighter('ซามูไร','b',900,116,96,108);
+  log(`Seed ${seedBase} — เริ่มการดวลแบบกำหนดผลซ้ำได้`);
   render(); schedule();
 }
 
@@ -102,7 +108,7 @@ function decide(self,enemy){
   self.commitment=pick.action.commit;
   self.causal=fmt(pick.causal);
   const top=pred.top[0];
-  self.reason=`Intent ${self.intent}; predicts ${top[0]} ${fmt(top[1]*100)}%; ${pick.causal>12?'builds future advantage':'best current utility'}`;
+  self.reason=`เจตนา: ${INTENT_NAMES[self.intent]}; คาดว่าอีกฝ่ายจะใช้ ${ACTION_NAMES[top[0]]} ${fmt(top[1]*100)}%; ${pick.causal>12?'การกระทำนี้สร้างความได้เปรียบให้เทิร์นถัดไป':'การกระทำนี้มีคะแนน Utility ปัจจุบันดีที่สุด'}`;
   return pick.action;
 }
 
@@ -119,21 +125,22 @@ function applyRecover(f){ f.stamina=clamp(f.stamina+24,0,100); f.posture=clamp(f
 function spend(f,a){ if(a.id!=='RECOVER') f.stamina=clamp(f.stamina-a.cost,0,100); }
 
 function resolveOne(attacker,defender,act,react){
-  if(act.id==='RECOVER'){ applyRecover(attacker); return `${attacker.name} recovers resources`; }
-  if(act.kind==='defense'){ attacker.posture=clamp(attacker.posture+5,0,100); attacker.tempo+=1; return `${attacker.name} holds ${act.label}`; }
+  if(act.id==='RECOVER'){ applyRecover(attacker); return `${attacker.name} ฟื้นพลังงานและสมดุลร่างกาย`; }
+  if(act.kind==='defense'){ attacker.posture=clamp(attacker.posture+5,0,100); attacker.tempo+=1; return `${attacker.name} ตั้งท่า ${act.label}`; }
   if(act.id==='FEINT'){
     attacker.tempo+=10; attacker.causal=clamp(attacker.causal+12,0,100);
-    if(['PARRY','BLOCK','DODGE'].includes(react.id)){ defender.stamina=clamp(defender.stamina-6,0,100); defender.tempo-=7; attacker.tempo+=7; return `${attacker.name} FEINT draws ${defender.name}'s ${react.label}`; }
-    return `${attacker.name} probes with FEINT`;
+    if(['PARRY','BLOCK','DODGE'].includes(react.id)){ defender.stamina=clamp(defender.stamina-6,0,100); defender.tempo-=7; attacker.tempo+=7; return `${attacker.name} หลอกสำเร็จ ทำให้ ${defender.name} ตอบสนองด้วย ${react.label}`; }
+    return `${attacker.name} ใช้การหลอกเพื่อทดสอบปฏิกิริยา`;
   }
 
   if(react.id==='PARRY' && rand() < (act.id==='HEAVY_ATTACK'?0.48:0.62)){
     attacker.posture=clamp(attacker.posture-18,0,100); attacker.tempo-=12; defender.tempo+=14;
-    return `${defender.name} PARRIES ${attacker.name}'s ${act.label}`;
+    return `${defender.name} ปัดป้อง ${act.label} ของ ${attacker.name} สำเร็จ`;
   }
 
   const landed=rand()<hitChance(attacker,defender,act,react);
-  if(!landed){ attacker.tempo-=5; defender.tempo+=6; return `${defender.name} avoids ${attacker.name}'s ${act.label}`; }
+  if(!landed){ attacker.tempo-=5; defender.tempo+=6; return `${defender.name} หลบ ${act.label} ของ ${attacker.name} ได้`;
+  }
 
   let dmg=act.damage*(attacker.atk/(attacker.atk+defender.def*0.72));
   let po=act.posture;
@@ -145,7 +152,7 @@ function resolveOne(attacker,defender,act,react){
   defender.posture=clamp(defender.posture-po,0,100);
   attacker.tempo+=act.tempo; defender.tempo-=Math.max(2,act.tempo*0.55);
   if(defender.posture===0){ defender.tempo-=12; attacker.causal=clamp(attacker.causal+28,0,100); }
-  return `${attacker.name} ${act.label} hits for ${fmt(dmg)}${defender.posture===0?' — POSTURE BREAK':''}`;
+  return `${attacker.name} ใช้ ${act.label} โดน ${fmt(dmg)} ดาเมจ${defender.posture===0?' — สมดุลแตก!':''}`;
 }
 
 function updateMemory(observer,enemy,enemyAction){
@@ -169,23 +176,23 @@ function step(){
   A.stamina=clamp(A.stamina+4,0,100); B.stamina=clamp(B.stamina+4,0,100);
   A.posture=clamp(A.posture+2,0,100); B.posture=clamp(B.posture+2,0,100);
   const tx={turn,a:aAct.id,b:bAct.id,aHP:fmt(A.hp),bHP:fmt(B.hp),rng:rngState}; history.push(tx);
-  log(`T${turn} | ${A.name}:${aAct.label} vs ${B.name}:${bAct.label} | ${l1}${l2?` · ${l2}`:''}`);
+  log(`เทิร์น ${turn} | ${A.name}: ${aAct.label} ปะทะ ${B.name}: ${bAct.label} | ${l1}${l2?` · ${l2}`:''}`);
   if(A.hp<=0||B.hp<=0||turn>=120){
     finished=true; running=false;
-    const winner=A.hp===B.hp?'DRAW':A.hp>B.hp?A.name:B.name;
-    $('result').textContent=`${winner} — ${turn} turns — Seed ${seedBase}`;
-    log(`COMMIT FINAL | winner=${winner} | replay-hash=${history.map(x=>`${x.a[0]}${x.b[0]}${x.aHP}${x.bHP}`).join('-')}`);
+    const winner=A.hp===B.hp?'เสมอ':A.hp>B.hp?A.name:B.name;
+    $('result').textContent=`ผู้ชนะ: ${winner} — ${turn} เทิร์น — Seed ${seedBase}`;
+    log(`บันทึกผลสุดท้าย | ผู้ชนะ=${winner} | replay-hash=${history.map(x=>`${x.a[0]}${x.b[0]}${x.aHP}${x.bHP}`).join('-')}`);
   }
   render();
 }
 
 function predictionText(f){
-  if(!f.lastPrediction) return 'Collecting observations…';
-  return f.lastPrediction.top.map(([id,p])=>`${id.replaceAll('_',' ')} ${fmt(p*100)}%`).join(' · ')+` | certainty ${f.infoCertainty}%`;
+  if(!f.lastPrediction) return 'กำลังเก็บข้อมูลพฤติกรรมคู่ต่อสู้…';
+  return f.lastPrediction.top.map(([id,p])=>`${ACTION_NAMES[id]} ${fmt(p*100)}%`).join(' · ')+` | ความแน่นอน ${f.infoCertainty}%`;
 }
 
 function candidatesHTML(f){
-  if(!f.lastCandidates.length) return '<div class="muted">Waiting for first decision…</div>';
+  if(!f.lastCandidates.length) return '<div class="muted">รอการตัดสินใจครั้งแรก…</div>';
   return f.lastCandidates.slice(0,5).map((c,i)=>`<div class="candidate ${i===0?'chosen':''}"><span>${i===0?'▶ ':''}${c.action.label}</span><b>${fmt(c.score)}</b></div>`).join('')+`<div class="muted" style="margin-top:7px">${f.reason}</div>`;
 }
 
@@ -193,15 +200,15 @@ function setBar(id,value,max=100){ $(id).style.width=`${clamp(value/max*100,0,10
 function renderF(f){
   $(f.side+'HP').textContent=fmt(f.hp); $(f.side+'ST').textContent=fmt(f.stamina); $(f.side+'PO').textContent=fmt(f.posture);
   setBar(f.side+'HPBar',f.hp,f.maxHP); setBar(f.side+'STBar',f.stamina); setBar(f.side+'POBar',f.posture);
-  $(f.side+'Tempo').textContent=fmt(f.tempo); $(f.side+'Conf').textContent=fmt(f.confidence); $(f.side+'Intent').textContent=f.intent;
+  $(f.side+'Tempo').textContent=fmt(f.tempo); $(f.side+'Conf').textContent=fmt(f.confidence); $(f.side+'Intent').textContent=INTENT_NAMES[f.intent] || f.intent;
   $(f.side+'Predict').textContent=predictionText(f); $(f.side+'Candidates').innerHTML=candidatesHTML(f);
 }
 function render(){
-  renderF(A); renderF(B); $('turn').textContent=`TURN ${turn}`;
+  renderF(A); renderF(B); $('turn').textContent=`เทิร์น ${turn}`;
   const focus=A.lastCandidates[0]?.score>=B.lastCandidates[0]?.score?A:B;
-  $('sigIntent').textContent=focus.intent; $('sigCommit').textContent=`${focus.commitment}%`; $('sigInfo').textContent=`${focus.infoCertainty}%`; $('sigTempo').textContent=fmt(A.tempo-B.tempo); $('sigCausal').textContent=fmt(focus.causal);
-  $('phase').textContent=finished?'DUEL COMPLETE — DETERMINISTIC RESULT':'OBSERVE → PREDICT → PLAN → RESOLVE → LEARN';
-  $('pause').textContent=running?'⏸ PAUSE':'▶ RESUME'; $('speed').textContent=`▶ ${speed}×`;
+  $('sigIntent').textContent=INTENT_NAMES[focus.intent] || focus.intent; $('sigCommit').textContent=`${focus.commitment}%`; $('sigInfo').textContent=`${focus.infoCertainty}%`; $('sigTempo').textContent=fmt(A.tempo-B.tempo); $('sigCausal').textContent=fmt(focus.causal);
+  $('phase').textContent=finished?'การดวลจบแล้ว — ผลลัพธ์ทำซ้ำได้ด้วย Seed เดิม':'สังเกต → คาดการณ์ → วางแผน → ตัดสินผล → เรียนรู้';
+  $('pause').textContent=running?'⏸ หยุด':'▶ เล่นต่อ'; $('speed').textContent=`▶ ${speed}×`;
 }
 function log(text){ const e=document.createElement('div'); e.className='entry'; e.textContent=text; $('log').prepend(e); }
 
