@@ -11,9 +11,9 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><div><h1>⚔️ TWA JRPG — Fantasy Battle Arena</h1><div class="muted">Turn-based JRPG · Stat System v1 · Tactical terrain · Isometric 3D</div></div><a href="../deep-duel/" style="color:#e6bb73">Deep Duel Lab</a></div>
+  <div class="top"><div><h1>⚔️ TWA JRPG — Fantasy Battle Arena</h1><div class="muted">Turn-based JRPG · Stat System v2 · Facing / Status / Injury · Isometric 3D</div></div><a href="../deep-duel/" style="color:#e6bb73">Deep Duel Lab</a></div>
   <div class="battle"><div id="viewport" class="viewport"></div><div id="turnBadge" class="turnBadge">เตรียมการต่อสู้</div></div>
-  <div class="guide"><b>Stat System v1:</b> STR / VIT / DEX / INT / WIS / AGI สร้าง Combat และ Tactical Stats อัตโนมัติ แล้ว Terrain, Height และ Stamina จะปรับค่าจริงระหว่างต่อสู้ เช่น Move, Jump, Accuracy และ Evasion</div>
+  <div class="guide"><b>Stat System v2:</b> Front / Side / Back มีผลต่อ Accuracy, Crit, Parry และ Guard จริง พร้อม Status Effect แบบมี Duration/Stack และ Injury ที่ศีรษะ แขน ขา ซึ่งลดความสามารถของตัวละครระหว่างไฟต์</div>
   <div class="hudRow">
     <div class="panel"><div class="name">อัศวินแห่งรุ่งอรุณ</div><div id="playerState" class="muted"></div>
       <div class="stat"><span>HP</span><div class="bar"><div id="pHPBar" class="fill hp"></div></div><b id="pHP"></b></div>
@@ -36,8 +36,8 @@
     <div class="panel"><b>รายละเอียดคำสั่ง</b><div id="subCommands" class="sub" style="margin-top:8px"></div></div>
   </div>
   <div class="panel" style="margin-top:8px"><div id="result" class="result"></div><b>Battle Log</b><div id="log" class="log"></div></div>
-  <div class="footer"><span class="chip">STR / VIT / DEX</span><span class="chip">INT / WIS / AGI</span><span class="chip">Derived Combat Stats</span><span class="chip">Dynamic Move / Jump</span><span class="chip">Terrain Modifiers</span><span class="chip">Height Bonus</span><span class="chip">Stamina Fatigue</span></div>
+  <div class="footer"><span class="chip">Front / Side / Back</span><span class="chip">Parry / Guard Efficiency</span><span class="chip">Bleed / Burn / Stagger</span><span class="chip">Status Duration / Stack</span><span class="chip">Head Injury</span><span class="chip">Arm Injury</span><span class="chip">Leg Injury</span></div>
 </div>
-<script type="module" src="./battle-v4.js"></script>
+<script type="module" src="./battle-v5.js"></script>
 </body>
 </html>
