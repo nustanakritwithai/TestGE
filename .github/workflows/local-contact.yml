@@ -1,0 +1,19 @@
+name: TestGE Local Contact Research
+
+on:
+  push:
+    paths:
+      - 'research/local-contact.mjs'
+      - '.github/workflows/local-contact.yml'
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run comprehensive local contact benchmark
+        run: node research/local-contact.mjs
