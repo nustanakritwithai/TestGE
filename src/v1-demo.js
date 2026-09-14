@@ -22,8 +22,8 @@ async function tick(){
 }
 
 async function loop(ts){
-  if(!last)last=ts;acc+=ts-last;last=ts;
-  while(running&&acc>=1000/60){await tick();acc-=1000/60}
+  if(!last)last=ts;acc+=Math.min(100,ts-last);last=ts;
+  if(running&&acc>=1000/60){await tick();acc=0}
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
@@ -32,12 +32,32 @@ function impulse(dx,dy){engine.submit('impulse',{entity:0,dvx:dx,dvy:dy},{source
 function damage(){engine.submit('damage',{target:1,amount:15,source:0,cause:'player-action'},{source:'player'});$('status').textContent='Input โจมตี Entity 1 เข้าคิว'}
 function spawn(){engine.submit('spawn',{x:.35,y:.15,vx:-.08,vy:.05,team:1,type:2,hp:100},{source:'player'});$('status').textContent='Input Spawn เข้าคิว'}
 
-$('up').onclick=()=>impulse(0,-.18);$('down').onclick=()=>impulse(0,.18);$('left').onclick=()=>impulse(-.18,0);$('right').onclick=()=>impulse(.18,0);$('attack').onclick=damage;$('spawn').onclick=spawn;
-$('pause').onclick=()=>{running=!running;$('pause').textContent=running?'หยุด':'เล่นต่อ'};
-$('parallel').onchange=e=>{parallel=e.target.checked};
-$('checkpoint').onclick=()=>{engine.checkpoint('demo');$('status').textContent=`Checkpoint ที่ Tick ${engine.tick}`};
-$('rollback').onclick=()=>{const u=engine.rollback(30);engine.createClient('demo-client',{mode:'all'});engine.bootstrapClient('demo-client');$('status').textContent=`Rollback ${u.length} commits`;draw()};
-$('replay').onclick=()=>{const a=engine.replay(30);engine.createClient('demo-client',{mode:'all'});engine.bootstrapClient('demo-client');$('status').textContent=`Replay ${a.length} commits`;draw()};
-$('reset').onclick=()=>{engine.destroy();engine=createEngine({seed:42,count:28,workers:2});engine.createClient('demo-client',{mode:'all'});engine.bootstrapClient('demo-client');$('status').textContent='สร้าง World ใหม่';draw()};
+function bindPress(id,handler,{repeat=false}={}){
+  const el=$(id);let timer=null;
+  const fire=e=>{e.preventDefault();e.stopPropagation();el.classList.add('pressed');handler();if(repeat){clearInterval(timer);timer=setInterval(handler,110)}};
+  const stop=e=>{if(e){e.preventDefault();e.stopPropagation()}el.classList.remove('pressed');if(timer){clearInterval(timer);timer=null}};
+  el.addEventListener('pointerdown',fire,{passive:false});
+  el.addEventListener('pointerup',stop,{passive:false});
+  el.addEventListener('pointercancel',stop,{passive:false});
+  el.addEventListener('pointerleave',stop,{passive:false});
+  el.addEventListener('contextmenu',e=>e.preventDefault());
+  // Keyboard/accessibility fallback without double-firing touch pointer events.
+  el.addEventListener('click',e=>{if(e.detail===0)handler()});
+}
 
+bindPress('up',()=>impulse(0,-.18),{repeat:true});
+bindPress('down',()=>impulse(0,.18),{repeat:true});
+bindPress('left',()=>impulse(-.18,0),{repeat:true});
+bindPress('right',()=>impulse(.18,0),{repeat:true});
+bindPress('attack',damage);
+bindPress('spawn',spawn);
+bindPress('pause',()=>{running=!running;$('pause').textContent=running?'หยุด':'เล่นต่อ'});
+bindPress('checkpoint',()=>{engine.checkpoint('demo');$('status').textContent=`Checkpoint ที่ Tick ${engine.tick}`});
+bindPress('rollback',()=>{const u=engine.rollback(30);engine.createClient('demo-client',{mode:'all'});engine.bootstrapClient('demo-client');$('status').textContent=`Rollback ${u.length} commits`;draw()});
+bindPress('replay',()=>{const a=engine.replay(30);engine.createClient('demo-client',{mode:'all'});engine.bootstrapClient('demo-client');$('status').textContent=`Replay ${a.length} commits`;draw()});
+bindPress('reset',()=>{engine.destroy();engine=createEngine({seed:42,count:28,workers:2});engine.createClient('demo-client',{mode:'all'});engine.bootstrapClient('demo-client');$('status').textContent='สร้าง World ใหม่';draw()});
+$('parallel').addEventListener('change',e=>{parallel=e.target.checked});
+
+// Prevent page scroll/zoom gestures from stealing D-pad touches.
+document.querySelector('.controls').addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
 draw();
