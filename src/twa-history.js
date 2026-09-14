@@ -20,7 +20,7 @@ export function createCheckpoint(world,label='manual'){
   };
 }
 
-export function restoreCheckpoint(world,cp){
+export function restoreCheckpoint(world,cp,{clearHistory=true}={}){
   if(!cp||!cp.arrays) throw new Error('Invalid checkpoint');
   if(world.capacity!==cp.capacity||world.count!==cp.count) throw new Error('Checkpoint shape mismatch');
   for(const f of ARRAY_FIELDS) world[f].set(cp.arrays[f]);
@@ -28,7 +28,7 @@ export function restoreCheckpoint(world,cp){
   world.worldVersion=cp.worldVersion;
   world.events=[];
   world.lastCommit=null;
-  world.deltaLog=[];
+  if(clearHistory) world.deltaLog=[];
   return {tick:world.tick,worldVersion:world.worldVersion,hash:stateHash(world)};
 }
 
@@ -63,6 +63,17 @@ export function rollback(world,steps=1){
   return undone;
 }
 
+export function rollbackToTick(world,targetTick){
+  const target=Math.max(0,Math.floor(targetTick));
+  const undone=[];
+  while(world.tick>target&&world.deltaLog.length){
+    const r=rollbackOne(world);
+    if(!r) break;
+    undone.push(r);
+  }
+  return {targetTick:target,reachedTick:world.tick,undone};
+}
+
 export function replayRecord(world,record){
   if(!record) return null;
   applyDelta(world,'forward',record);
@@ -71,13 +82,25 @@ export function replayRecord(world,record){
   world.events=record.events||[];
   world.lastCommit=record;
   world.deltaLog.push(record);
-  if(world.deltaLog.length>256) world.deltaLog.shift();
+  if(world.deltaLog.length>4096) world.deltaLog.shift();
   return record;
 }
 
 export function replayMany(world,records=[]){
   const applied=[];
   for(const r of records){replayRecord(world,r);applied.push(r)}
+  return applied;
+}
+
+export function replayStack(world,redoStack=[],steps=Infinity){
+  const applied=[];
+  const n=Math.min(redoStack.length,Number.isFinite(steps)?Math.max(0,Math.floor(steps)):redoStack.length);
+  for(let i=0;i<n;i++){
+    const rec=redoStack.pop();
+    if(!rec) break;
+    replayRecord(world,rec);
+    applied.push(rec);
+  }
   return applied;
 }
 
@@ -94,12 +117,20 @@ export function auditEntity(world,entity,limit=30){
   return rows;
 }
 
-export function verifyReplayRoundTrip(world){
-  if(!world.deltaLog.length) return {ok:true,reason:'no history',hash:stateHash(world)};
-  const before=stateHash(world);
-  const rec=rollbackOne(world);
-  if(!rec) return {ok:false,reason:'rollback failed'};
-  replayRecord(world,rec);
+export function verifyReplayRoundTrip(world,steps=1){
+  const n=Math.max(1,Math.floor(steps));
+  if(!world.deltaLog.length) return {ok:true,reason:'no history',hash:stateHash(world),steps:0};
+  const before=stateHash(world),beforeTick=world.tick;
+  const undone=rollback(world,n);
+  const replayOrder=[...undone].reverse();
+  replayMany(world,replayOrder);
   const after=stateHash(world);
-  return {ok:before===after,before,after,recordTick:rec.tick};
+  return {ok:before===after,before,after,beforeTick,afterTick:world.tick,steps:undone.length};
+}
+
+export function historyStats(world,redoStack=[]){
+  const commits=world.deltaLog.length;
+  let writes=0,events=0,conflicts=0;
+  for(const r of world.deltaLog){writes+=r.writes||0;events+=(r.events||[]).length;conflicts+=r.conflicts||0;}
+  return {commits,writes,events,conflicts,redo:redoStack.length,tick:world.tick,worldVersion:world.worldVersion};
 }
