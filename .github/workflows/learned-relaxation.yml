@@ -1,0 +1,19 @@
+name: TestGE Learned Relaxation Research
+
+on:
+  push:
+    paths:
+      - 'research/learned-relaxation.mjs'
+      - '.github/workflows/learned-relaxation.yml'
+  workflow_dispatch:
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run learned relaxation benchmark
+        run: node research/learned-relaxation.mjs
