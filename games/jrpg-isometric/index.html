@@ -11,9 +11,9 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="top"><div><h1>⚔️ TWA JRPG — Fantasy Battle Arena</h1><div class="muted">Turn-based JRPG · Enlarged battlefield · Free tactical movement · Isometric 3D</div></div><a href="../deep-duel/" style="color:#e6bb73">Deep Duel Lab</a></div>
+  <div class="top"><div><h1>⚔️ TWA JRPG — Fantasy Battle Arena</h1><div class="muted">Turn-based JRPG · Tactical terrain · Free movement · Isometric 3D</div></div><a href="../deep-duel/" style="color:#e6bb73">Deep Duel Lab</a></div>
   <div class="battle"><div id="viewport" class="viewport"></div><div id="turnBadge" class="turnBadge">เตรียมการต่อสู้</div></div>
-  <div class="guide"><b>สนามใหม่:</b> Ruined Sanctuary ขนาดใหญ่ขึ้นสำหรับการอ้อม, flank, ถอย และใช้สกิลระยะไกล โดยยังเป็นสนามต่อสู้เดียว ไม่ใช่แผนที่สำรวจ</div>
+  <div class="guide"><b>Movement v3:</b> พื้นที่สูงให้ High Ground, ทางหินเดินถูกกว่า, โคลนใช้ Movement Point มากขึ้น, เสาและกองหินขวางทางจริง, สามารถ Jump/Drop ระหว่างระดับความสูง และเมื่อถอนตัวออกจาก Zone of Control จะเสี่ยง Attack of Opportunity</div>
   <div class="hudRow">
     <div class="panel"><div class="name">อัศวินแห่งรุ่งอรุณ</div><div id="playerState" class="muted"></div>
       <div class="stat"><span>HP</span><div class="bar"><div id="pHPBar" class="fill hp"></div></div><b id="pHP"></b></div>
@@ -36,8 +36,8 @@
     <div class="panel"><b>รายละเอียดคำสั่ง</b><div id="subCommands" class="sub" style="margin-top:8px"></div></div>
   </div>
   <div class="panel" style="margin-top:8px"><div id="result" class="result"></div><b>Battle Log</b><div id="log" class="log"></div></div>
-  <div class="footer"><span class="chip">Fantasy Ruined Sanctuary</span><span class="chip">Arena Radius 9m</span><span class="chip">Move 3.2m/turn</span><span class="chip">Tap-to-Move</span><span class="chip">Range</span><span class="chip">Flank / Back Attack</span><span class="chip">Isometric 3D</span></div>
+  <div class="footer"><span class="chip">Height / High Ground</span><span class="chip">Terrain Cost</span><span class="chip">Obstacle Collision</span><span class="chip">Jump / Drop</span><span class="chip">Zone of Control</span><span class="chip">Attack of Opportunity</span><span class="chip">Flank / Back Attack</span></div>
 </div>
-<script type="module" src="./battle-v2.js"></script>
+<script type="module" src="./battle-v3.js"></script>
 </body>
 </html>
