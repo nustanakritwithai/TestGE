@@ -2,7 +2,7 @@ import {createWorld,snapshot,makeProposal,resolveConflicts,verify,commit,stateHa
 
 const $=id=>document.getElementById(id), canvas=$('battle'), ctx=canvas.getContext('2d');
 const TICK_MS=100, SEED=4242, SQUAD_SIZE=10, COMPANY_SIZE=100, BATTALION_SIZE=300, SPATIAL_CELL=.06;
-const HILL={x:.22,y:0,r:.18};
+const HILL={x:.58,y:0,r:.18};
 const ROLE={RIFLE:0,LEADER:1,MG:2,MEDIC:3,MARKSMAN:4,SCOUT:5,GRENADIER:6,ENGINEER:7};
 const STATE={ADVANCE:0,SEEK_COVER:1,AIM:2,FIRE:3,SUPPRESS:4,RELOAD:5,TREAT:6,FALL_BACK:7,PINNED:8,ROUT:9};
 const SQ={ADVANCE:0,ENGAGE:1,SUPPRESS:2,FLANK:3,DEFEND:4,FALLBACK:5,RESERVE:6};
@@ -20,13 +20,13 @@ const WEAPON={
 const TERRAIN=[
  {x:-.18,y:-.42,r:.16,cover:.18,name:'FOREST'},
  {x:-.10,y:.40,r:.17,cover:.20,name:'FOREST'},
- {x:.08,y:-.28,r:.13,cover:.22,name:'FORWARD TRENCH'},
- {x:.10,y:.28,r:.13,cover:.22,name:'FORWARD TRENCH'},
- {x:.28,y:-.14,r:.14,cover:.34,name:'HILL TRENCH'},
- {x:.29,y:.16,r:.14,cover:.34,name:'HILL TRENCH'},
- {x:.43,y:0,r:.12,cover:.27,name:'RESERVE'},
- {x:.39,y:-.36,r:.13,cover:.20,name:'WOOD'},
- {x:.40,y:.37,r:.13,cover:.20,name:'WOOD'}
+ {x:.34,y:-.28,r:.13,cover:.22,name:'FORWARD TRENCH'},
+ {x:.36,y:.28,r:.13,cover:.22,name:'FORWARD TRENCH'},
+ {x:.55,y:-.14,r:.14,cover:.34,name:'HILL TRENCH'},
+ {x:.57,y:.16,r:.14,cover:.34,name:'HILL TRENCH'},
+ {x:.72,y:0,r:.12,cover:.27,name:'RESERVE'},
+ {x:.68,y:-.36,r:.13,cover:.20,name:'WOOD'},
+ {x:.69,y:.37,r:.13,cover:.20,name:'WOOD'}
 ];
 
 let world,count=1200,running=true,speed=1,last=performance.now(),acc=0,benchRunning=false,doctrine='BALANCED',battleOver=false,winner='';
@@ -41,7 +41,7 @@ function hash01(a,b,c,d=0){let x=(SEED^(a*374761393)^(b*668265263)^(c*2246822519
 function alive(i){return i>=0&&i<count&&world.active[i]&&world.hp[i]>0}
 function roleForSlot(s){return s===0?ROLE.LEADER:s===1?ROLE.MEDIC:s===2?ROLE.MG:s===3?ROLE.GRENADIER:s===4?ROLE.SCOUT:s===5?ROLE.MARKSMAN:s===6?ROLE.ENGINEER:ROLE.RIFLE}
 function pushLog(type,text){log.push({tick:world?.tick||0,type,text});if(log.length>100)log.shift();$('log').innerHTML=log.slice(-16).reverse().map(x=>`<div class="entry"><b>${x.type==='CONTACT'?'⚔️ ':''}${x.type}</b> • ${x.text}<div class="muted">tick ${x.tick}</div></div>`).join('')}
-function coverAt(x,y,team){let c=0;for(const t of TERRAIN)if(Math.hypot(x-t.x,y-t.y)<t.r)c=Math.max(c,t.cover);if(team===1&&x>.06&&x<.38&&Math.abs(y)<.50)c=Math.max(c,.08);return c}
+function coverAt(x,y,team){let c=0;for(const t of TERRAIN)if(Math.hypot(x-t.x,y-t.y)<t.r)c=Math.max(c,t.cover);if(team===1&&x>.30&&x<.76&&Math.abs(y)<.50)c=Math.max(c,.08);return c}
 
 function init(n=count){
  count=n;world=createWorld({seed:SEED,count,density:.15,speed:0});
@@ -56,15 +56,15 @@ function init(n=count){
  }
  world.tick=0;world.worldVersion=0;world.deltaLog.length=0;world.eventLog.length=0;
  profiler={snap:0,spatial:0,move:0,combat:0,commit:0,writes:0,conflicts:0,last:0,cells:0,maxCell:0,queries:0,candidates:0};
- pushLog('SYSTEM',`Total Front P4.1 • Defender Battlefield • ${count.toLocaleString()} entities`);
- pushLog('MISSION','Hill 42 อยู่ใกล้ RED พร้อม Forward / Hill / Reserve defense depth');draw();updateHUD();
+ pushLog('SYSTEM',`Total Front P4.2 • Defender Objective Zone • ${count.toLocaleString()} entities`);
+ pushLog('MISSION','Hill 42 อยู่ในแนวตั้งรับ RED ที่ x=+0.58 • ฝ่ายรับเข้าประจำพื้นที่ก่อนฝ่ายบุก');draw();updateHUD();
 }
 
 function buildHierarchy(team,start,end){
  const side=team===0?-1:1,total=end-start,bnCount=Math.max(1,Math.ceil(total/BATTALION_SIZE));
  for(let b=0;b<bnCount;b++){
   const id=hierarchy.battalions.length,bs=start+b*BATTALION_SIZE,be=Math.min(end,bs+BATTALION_SIZE),lane=bnCount===1?0:-.68+b*(1.36/(bnCount-1));
-  hierarchy.battalions.push({id,team,start:bs,end:be,homeX:side*.72,homeY:lane,targetX:team===0?-.5:HILL.x+.09,targetY:lane,order:team===0?'ASSEMBLE':'DEFEND',damageDone:0,losses:0});
+  hierarchy.battalions.push({id,team,start:bs,end:be,homeX:side*.72,homeY:lane,targetX:team===0?-.5:HILL.x+.03,targetY:lane,order:team===0?'ASSEMBLE':'DEFEND',damageDone:0,losses:0});
   const coCount=Math.ceil((be-bs)/COMPANY_SIZE);
   for(let c=0;c<coCount;c++){
    const coId=hierarchy.companies.length,cs=bs+c*COMPANY_SIZE,ce=Math.min(be,cs+COMPANY_SIZE),coY=(c-(coCount-1)/2)*.075;
@@ -94,12 +94,12 @@ function autonomousCommand(){
   if(bn.team===0){
    if(st.strength<.30||st.morale<20){bn.order='RETREAT';bn.targetX=-.72;bn.targetY=bn.homeY}
    else if(tick<18){bn.order='ASSEMBLE';bn.targetX=-.48;bn.targetY=bn.homeY}
-   else{bn.order=doctrine==='AGGRESSIVE'?'ASSAULT':doctrine==='CAUTIOUS'?'BOUND_ADVANCE':'ATTACK';bn.targetX=HILL.x-.015;bn.targetY=clamp(HILL.y+bn.homeY*.24+laneBias,-.54,.54)}
+   else{bn.order=doctrine==='AGGRESSIVE'?'ASSAULT':doctrine==='CAUTIOUS'?'BOUND_ADVANCE':'ATTACK';bn.targetX=HILL.x-.02;bn.targetY=clamp(HILL.y+bn.homeY*.24+laneBias,-.54,.54)}
   }else{
    const pressure=teamNearHill(0)>12;
-   if(st.strength<.27||st.morale<17){bn.order='FALLBACK';bn.targetX=.62;bn.targetY=bn.homeY}
-   else if(pressure&&st.morale>50&&local%3===0){bn.order='COUNTER';bn.targetX=HILL.x-.07;bn.targetY=bn.homeY*.16}
-   else{bn.order='DEFEND';bn.targetX=HILL.x+.06+(local%2)*.025;bn.targetY=clamp(bn.homeY*.36,-.52,.52)}
+   if(st.strength<.27||st.morale<17){bn.order='FALLBACK';bn.targetX=.78;bn.targetY=bn.homeY}
+   else if(pressure&&st.morale>50&&local%3===0){bn.order='COUNTER';bn.targetX=HILL.x-.10;bn.targetY=bn.homeY*.16}
+   else{bn.order='DEFEND';bn.targetX=HILL.x+.01+(local%2)*.02;bn.targetY=clamp(bn.homeY*.36,-.52,.52)}
   }
  }
  if(tick%50===0)pushLog('AI PLAN',`BLUE ${modeOf(hierarchy.battalions.filter(b=>b.team===0).map(b=>b.order))} • RED ${modeOf(hierarchy.battalions.filter(b=>b.team===1).map(b=>b.order))}`)
@@ -115,7 +115,7 @@ function updateCompanyAI(){
    if(max>55&&reserve!==pressured){companies[reserve].state=CO.REINFORCE;companies[reserve].targetX=stats[pressured].x-.03;companies[reserve].targetY=stats[pressured].y}
   }else{
    let weak=0,min=2;stats.forEach((s,i)=>{if(s.strength<min){min=s.strength;weak=i}});
-   companies.forEach((c,i)=>{c.state=CO.DEFEND;if(i===companies.length-1){c.targetX=HILL.x+.20;c.targetY=clamp(bn.targetY+c.offsetY*.35,-.48,.48)}else if(i===0){c.targetX=HILL.x-.10;c.targetY=clamp(bn.targetY+c.offsetY*.45,-.52,.52)}else{c.targetX=HILL.x+.05;c.targetY=clamp(bn.targetY+c.offsetY*.45,-.52,.52)}});
+   companies.forEach((c,i)=>{c.state=CO.DEFEND;if(i===companies.length-1){c.targetX=HILL.x+.12;c.targetY=clamp(bn.targetY+c.offsetY*.35,-.48,.48)}else if(i===0){c.targetX=HILL.x-.12;c.targetY=clamp(bn.targetY+c.offsetY*.45,-.52,.52)}else{c.targetX=HILL.x;c.targetY=clamp(bn.targetY+c.offsetY*.45,-.52,.52)}});
    const reserve=companies.length-1;if(min<.62&&reserve!==weak){companies[reserve].state=CO.REINFORCE;companies[reserve].targetX=stats[weak].x+.035;companies[reserve].targetY=stats[weak].y}
   }
  }
