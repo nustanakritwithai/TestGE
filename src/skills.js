@@ -32,19 +32,21 @@ export class ApproxClassicalSkill extends ComputeSkill{
   }
 }
 
-export class ResearchSkill extends ComputeSkill{
-  constructor(id,label){super(id,label);this.approved=false}
-  run(){throw new Error(`${this.label} ยังเป็น Research Slot และยังไม่ได้รับอนุมัติจาก benchmark`)}
-}
-
+// Runtime V1 intentionally contains only classical skills.
+// Learned/GNN experiments remain in /research as an archive and cannot be selected by runtime code.
 export const registry={
   exact:new ExactClassicalSkill(),
-  approx:new ApproxClassicalSkill(),
-  gnn:new ResearchSkill('gnn','GNN'),
-  residual:new ResearchSkill('residual','Residual GNN')
+  approx:new ApproxClassicalSkill()
 };
 
-export function verifyProposal(world,proposal,{critical=false}={}){
+export const researchArchive=[
+  {id:'full-gnn',status:'FAIL',reason:'ไม่พบ competence region ที่ชนะ Classical ภายใต้ quality gate'},
+  {id:'residual-gnn',status:'FAIL',reason:'ความแม่นยำ/ต้นทุนยังไม่คุ้มสำหรับ runtime'},
+  {id:'local-residual-contact',status:'FAIL',reason:'มี speedup แต่ error สูงเกินเกณฑ์'},
+  {id:'learned-relaxation',status:'FAIL',reason:'Oracle ยังต้องใช้ solver เต็มเกือบทั้งหมดภายใต้ quality target'}
+];
+
+export function verifyProposal(_world,proposal,{critical=false}={}){
   if(!proposal||!Array.isArray(proposal.stateDelta))return {ok:false,reason:'โครงสร้างผลลัพธ์ไม่ถูกต้อง'};
   for(const e of proposal.stateDelta){if(!Number.isFinite(e.x)||!Number.isFinite(e.y)||!Number.isFinite(e.vx)||!Number.isFinite(e.vy))return {ok:false,reason:'พบ NaN/Infinity'};if(Math.abs(e.x)>1.05||Math.abs(e.y)>1.05)return {ok:false,reason:'สถานะหลุดขอบโลก'}}
   if(critical&&!proposal.diagnostics?.authority)return {ok:false,reason:'เหตุการณ์วิกฤตต้องใช้ Exact Authority'};
