@@ -1,0 +1,7 @@
+// R11.0 Online Adaptation — bounded within-battle preference learning.
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));export const ADAPT={rate:.08,min:.82,max:1.18,maxStep:.035,minSamples:2,minConfidence:.22,decay:.015};
+export function createAdaptation(actorId){return{actorId,weights:{},history:[]}}
+export function weightFor(state,action){return state?.weights?.[action]??1}
+export function adaptFromOutcome(state,belief,round){if(!belief||belief.attempts<ADAPT.minSamples||belief.confidence<ADAPT.minConfidence)return null;const old=weightFor(state,belief.action),signal=clamp(belief.predictionError/80,-1,1),target=clamp(1+signal*ADAPT.rate,ADAPT.min,ADAPT.max),step=clamp(target-old,-ADAPT.maxStep,ADAPT.maxStep),next=clamp(old+step,ADAPT.min,ADAPT.max);state.weights[belief.action]=next;const change={round,action:belief.action,old,next,delta:next-old,signal,confidence:belief.confidence,attempts:belief.attempts,reason:signal<0?'UNDERPERFORMING':'OUTPERFORMING',evidence:(belief.evidence||[]).slice(-6)};state.history.push(change);if(state.history.length>48)state.history.shift();return change}
+export function decayAdaptation(state){for(const k of Object.keys(state.weights)){const v=state.weights[k];state.weights[k]=1+(v-1)*(1-ADAPT.decay);if(Math.abs(state.weights[k]-1)<.001)delete state.weights[k]}}
+export function adaptationSummary(state){return{actorId:state.actorId,weights:{...state.weights},recent:state.history.slice(-8)}}
