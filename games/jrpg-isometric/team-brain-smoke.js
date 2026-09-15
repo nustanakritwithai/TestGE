@@ -1,0 +1,3 @@
+import{chooseTeamIntent,roleDirective}from'./team-brain-v1.js';
+const a=(id,hp,maxHP=100,posture=100)=>({id,hp,maxHP,posture,x:0,z:0});
+export function smokeTeamBrain(){const own={members:[a('p1',100),a('p2',100)]};let enemy={members:[a('e1',20),a('e2',90)]};const finish=chooseTeamIntent(own,enemy);enemy={members:[a('e1',90,100,25),a('e2',90)]};const br=chooseTeamIntent(own,enemy);own.members[1].hp=25;const protect=chooseTeamIntent(own,enemy),dir=roleDirective(own.members[0],protect,own,enemy);return{pass:finish.intent==='FOCUS_FINISH'&&br.intent==='BREAK_TARGET'&&protect.intent==='PROTECT_WEAK'&&dir.intent==='PROTECT',finish:finish.intent,break:br.intent,protect:protect.intent,directive:dir.intent};}
