@@ -142,14 +142,71 @@ function aggregate(rows){
   return out;
 }
 
+function boundarySensitivity({densities=[.1,.2,.3,.4,.5,.6,.7,.8],seeds=50,steps=200}={}){
+  const rows=[];
+  for(const boundary of ['torus','fixed']) for(const density of densities) for(let si=0;si<seeds;si++){
+    const seed=44000+si*131+Math.round(density*1000);
+    let g=seededInitial(seed,density),extinctAt=null;
+    for(let generation=0;generation<steps;generation++){
+      if(countActive(g)===0){extinctAt=generation;break}
+      g=stepLife(g,{w:W,h:H,boundary});
+    }
+    if(extinctAt===null&&countActive(g)===0)extinctAt=steps;
+    rows.push({boundary,density,extinct:countActive(g)===0,extinctAt,terminalActive:countActive(g)/N});
+  }
+  const out={};
+  for(const boundary of ['torus','fixed']){
+    out[boundary]={};
+    for(const density of densities){
+      const a=rows.filter(r=>r.boundary===boundary&&r.density===density);
+      out[boundary][density]={
+        runs:a.length,
+        extinctionFrequency:mean(a.map(x=>x.extinct?1:0)),
+        medianExtinctionGeneration:median(a.filter(x=>x.extinctAt!==null).map(x=>x.extinctAt)),
+        meanTerminalActiveRatio:mean(a.map(x=>x.terminalActive))
+      };
+    }
+  }
+  return out;
+}
+function densityBreakdown(rows){
+  const out={};
+  for(const name of ['FIXED','RANDOM','SHUFFLE','CONWAY']){
+    out[name]={};
+    for(const density of [.1,.2,.3,.4,.5,.6,.7,.8]){
+      const a=rows.filter(r=>r.name===name&&r.density===density);
+      out[name][density]={
+        runs:a.length,
+        activeRatio:mean(a.map(x=>x.activeRatio)),
+        medianGroupLifetime:median(a.map(x=>x.medianGroupLifetime)),
+        extinctionFrequency:mean(a.map(x=>x.extinct?1:0)),
+        meanHouseRichness:mean(a.map(x=>x.meanHouseRichness)),
+        meanHouseEntropy:mean(a.map(x=>x.meanHouseEntropy))
+      };
+    }
+  }
+  return out;
+}
+function metadataIsolationGate(){
+  const initial=seededInitial(77001,.42);
+  const finalA=runLife(initial,250,{w:W,h:H,boundary:'torus'});
+  mapping(1);mapping(99999);
+  const finalB=runLife(initial,250,{w:W,h:H,boundary:'torus'});
+  const a=hashObject({bits:bitString(finalA)}),b=hashObject({bits:bitString(finalB)});
+  assert.equal(a,b,'House metadata leaked into Conway transition');
+  return {identical:true,hash:a};
+}
+
 const patternTests=validatePatterns();
 const determinism=determinismGate();
+const metadataIsolation=metadataIsolationGate();
 const rows=structureSuite();
+const boundary=boundarySensitivity();
 const report={
-  version:'social-life-five-houses-fa-r0-r1-v1',
+  version:'social-life-five-houses-fa-r0-r1-v2',
   baseline:{grid:'8x8',npcCount:64,boundary:'torus',rule:'B3/S23',houseCounts:HOUSE_COUNTS,stepsPerRun:200,densities:[.1,.2,.3,.4,.5,.6,.7,.8],seedsPerDensity:10,mappings:10},
-  engineering:{patternTests,determinism,pass:true},
-  structure:{aggregate:aggregate(rows)},
+  engineering:{patternTests,determinism,metadataIsolation,pass:true},
+  structure:{aggregate:aggregate(rows),byDensity:densityBreakdown(rows),boundarySensitivity:boundary},
   gates:{
     engineCorrectness:'PASS',
     socialStructure:'UNKNOWN',
