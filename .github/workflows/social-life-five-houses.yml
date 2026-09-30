@@ -1,0 +1,25 @@
+name: TestGE Social Life Five Houses
+
+on:
+  push:
+    branches:
+      - 'research/social-life-five-houses-*'
+    paths:
+      - 'research/social-life-five-houses.mjs'
+      - '.github/workflows/social-life-five-houses.yml'
+  pull_request:
+    paths:
+      - 'research/social-life-five-houses.mjs'
+      - '.github/workflows/social-life-five-houses.yml'
+  workflow_dispatch:
+
+jobs:
+  social-life-research:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Social Game of Life five-house harness
+        run: node research/social-life-five-houses.mjs
