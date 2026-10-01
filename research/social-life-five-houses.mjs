@@ -159,7 +159,7 @@ function coMembershipPersistence(states){
 }
 
 function trackSequence(states,map){
-  let prev=[],nextId=1,splits=0,merges=0;const tracks=new Map(),perGen=[];
+  let prev=[],nextId=1,splits=0,merges=0;const tracks=new Map(),perGen=[],frameHistory=[];
   for(let generation=0;generation<states.length;generation++){
     const gs=groupDescriptors(states[generation],map).map(g=>({...g,trackId:null})),pairs=[];
     for(let i=0;i<prev.length;i++)for(let j=0;j<gs.length;j++){const score=jaccard(prev[i].members,gs[j].members);if(score>0)pairs.push({i,j,score})}
@@ -176,10 +176,11 @@ function trackSequence(states,map){
       else{const t=tracks.get(g.trackId);t.last=generation;t.lifetime=t.last-t.born+1}
     }
     perGen.push({active:countActive(states[generation]),groups:gs.length,meanGroupSize:mean(gs.map(g=>g.size)),meanRichness:mean(gs.map(g=>g.houseRichness)),meanEntropy:mean(gs.map(g=>g.houseEntropy))});
+    frameHistory.push(gs.map(g=>({trackId:g.trackId,members:[...g.members],size:g.size,houseCounts:{...g.houseCounts},houseRichness:g.houseRichness,houseEntropy:g.houseEntropy})));
     prev=gs;
   }
   const lifetimes=[...tracks.values()].map(x=>x.lifetime);
-  return {perGen,lifetimes,splits,merges,meanLifetime:mean(lifetimes),medianLifetime:median(lifetimes),maxLifetime:lifetimes.length?Math.max(...lifetimes):0};
+  return {perGen,frames:frameHistory,lifetimes,splits,merges,meanLifetime:mean(lifetimes),medianLifetime:median(lifetimes),maxLifetime:lifetimes.length?Math.max(...lifetimes):0};
 }
 
 function conwayStates(seed,density,steps){let g=seededInitial(seed,density),a=[cloneGrid(g)];for(let i=0;i<steps;i++){g=stepLife(g);a.push(cloneGrid(g))}return a}
@@ -187,6 +188,146 @@ function fixedStates(seed,density,steps){const g=seededInitial(seed,density);ret
 function randomStates(seed,density,steps){const R=rng(seed^0xabcddcba),a=[];for(let s=0;s<=steps;s++){const g=new Uint8Array(N);for(let i=0;i<N;i++)g[i]=R()<density?1:0;a.push(g)}return a}
 function shuffleStates(conway,seed){const R=rng(seed^0x55aa55aa),out=[];for(const src of conway){const n=countActive(src),positions=shuffle([...Array(N).keys()],R).slice(0,n),g=new Uint8Array(N);for(const p of positions)g[p]=1;out.push(g)}return out}
 function noSocialStates(steps){return Array.from({length:steps+1},()=>new Uint8Array(N))}
+
+
+function activeIndices(g){const a=[];for(let i=0;i<g.length;i++)if(g[i])a.push(i);return a}
+function activeOverlap(a,b){let n=0;for(let i=0;i<a.length;i++)if(a[i]&&b[i])n++;return n}
+function persistenceMatchedStates(conway,seed){
+  const R=rng(seed^0x3b9aca07),out=[];
+  const n0=countActive(conway[0]),g0=new Uint8Array(N);
+  for(const i of shuffle([...Array(N).keys()],R).slice(0,n0))g0[i]=1;
+  out.push(g0);
+  for(let t=1;t<conway.length;t++){
+    const targetCount=countActive(conway[t]),targetOverlap=activeOverlap(conway[t-1],conway[t]);
+    const prevActive=activeIndices(out[t-1]),prevInactive=[];for(let i=0;i<N;i++)if(!out[t-1][i])prevInactive.push(i);
+    assert(targetOverlap<=Math.min(prevActive.length,targetCount),'Persistence target overlap infeasible');
+    const births=targetCount-targetOverlap;
+    assert(births<=prevInactive.length,'Persistence target births infeasible');
+    const next=new Uint8Array(N);
+    for(const i of shuffle(prevActive,R).slice(0,targetOverlap))next[i]=1;
+    for(const i of shuffle(prevInactive,R).slice(0,births))next[i]=1;
+    assert.equal(countActive(next),targetCount,'Persistence matched active count drift');
+    assert.equal(activeOverlap(out[t-1],next),targetOverlap,'Persistence matched overlap drift');
+    out.push(next);
+  }
+  return out;
+}
+function houseVectorKey(counts){
+  return ['RESOURCE','PRODUCTION','MARKET','ADVENTURE','LEADER'].map(h=>counts[h]||0).join(',');
+}
+function frameCompositionSignature(frame){
+  return frame.map(g=>g.size+'|'+houseVectorKey(g.houseCounts)).sort().join(';');
+}
+function freshGroup(id,members,houseById){
+  const houseCounts={RESOURCE:0,PRODUCTION:0,MARKET:0,ADVENTURE:0,LEADER:0};
+  for(const npcId of members)houseCounts[houseById.get(npcId)]++;
+  return {trackId:id,members:[...members],size:members.length,houseCounts,houseRichness:Object.values(houseCounts).filter(x=>x>0).length,houseEntropy:entropyNormalized(houseCounts)};
+}
+function compositionMatchedFrames(conwayFrames,map,seed){
+  const R=rng(seed^0x6a09e667),houseById=new Map(map.map(x=>[x.npcId,x.house])),rosterByHouse={};
+  for(const h of Object.keys(HOUSE_COUNTS))rosterByHouse[h]=map.filter(x=>x.house===h).map(x=>x.npcId);
+  const frames=[];
+  for(let t=0;t<conwayFrames.length;t++){
+    const pools=Object.fromEntries(Object.keys(HOUSE_COUNTS).map(h=>[h,shuffle(rosterByHouse[h],R)]));
+    const offsets=Object.fromEntries(Object.keys(HOUSE_COUNTS).map(h=>[h,0]));
+    const groups=[];
+    for(let gi=0;gi<conwayFrames[t].length;gi++){
+      const spec=conwayFrames[t][gi],members=[];
+      for(const h of Object.keys(HOUSE_COUNTS)){
+        const need=spec.houseCounts[h]||0,start=offsets[h],end=start+need;
+        assert(end<=pools[h].length,'Composition matched house pool exhausted');
+        members.push(...pools[h].slice(start,end));offsets[h]=end;
+      }
+      groups.push(freshGroup('CM-'+t+'-'+gi,members,houseById));
+    }
+    assert.equal(frameCompositionSignature(groups),frameCompositionSignature(conwayFrames[t]),'Composition matched signature drift');
+    frames.push(groups);
+  }
+  return frames;
+}
+function sizeLifetimeMatchedFrames(conwayFrames,map,seed){
+  const R=rng(seed^0xbb67ae85),houseById=new Map(map.map(x=>[x.npcId,x.house])),roster=map.map(x=>x.npcId),frames=[];
+  for(let t=0;t<conwayFrames.length;t++){
+    const pool=shuffle(roster,R);let offset=0;const groups=[];
+    for(const spec of conwayFrames[t]){
+      const members=pool.slice(offset,offset+spec.size);offset+=spec.size;
+      assert.equal(members.length,spec.size,'Size/lifetime matched roster exhausted');
+      groups.push(freshGroup(spec.trackId,members,houseById));
+    }
+    assert.deepEqual(groups.map(g=>[g.trackId,g.size]),conwayFrames[t].map(g=>[g.trackId,g.size]),'Size/lifetime schedule drift');
+    frames.push(groups);
+  }
+  return frames;
+}
+function framePairSet(frame){
+  const pairs=new Set();
+  for(const g of frame){
+    const ids=g.members.map(x=>Number(x.slice(4))).sort((a,b)=>a-b);
+    for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++)pairs.add(ids[i]*N+ids[j]);
+  }
+  return pairs;
+}
+function groupFrameCoPersistence(frames){
+  const vals=[];
+  for(let t=0;t<frames.length-1;t++){
+    const a=framePairSet(frames[t]);if(a.size===0)continue;
+    const b=framePairSet(frames[t+1]);let kept=0;for(const p of a)if(b.has(p))kept++;
+    vals.push(kept/a.size);
+  }
+  return {samples:vals.length,mean:mean(vals),median:median(vals)};
+}
+function summarizeGroupFrames(name,frames){
+  const per=frames.map(groups=>{
+    const members=new Set(groups.flatMap(g=>g.members));
+    return {active:members.size,groups:groups.length,meanGroupSize:mean(groups.map(g=>g.size)),meanRichness:mean(groups.map(g=>g.houseRichness)),meanEntropy:mean(groups.map(g=>g.houseEntropy))};
+  });
+  const present=per.filter(x=>x.groups>0),co=groupFrameCoPersistence(frames),trackStats=new Map();
+  for(let t=0;t<frames.length;t++)for(const g of frames[t]){
+    if(!trackStats.has(g.trackId))trackStats.set(g.trackId,{born:t,last:t});
+    else trackStats.get(g.trackId).last=t;
+  }
+  const lifetimes=[...trackStats.values()].map(x=>x.last-x.born+1);
+  return {
+    name,
+    activeRatio:mean(per.map(x=>x.active/N)),
+    meanGroupCount:mean(per.map(x=>x.groups)),
+    meanGroupSize:mean(per.map(x=>x.meanGroupSize)),
+    meanGroupSizeWhenPresent:mean(present.map(x=>x.meanGroupSize)),
+    meanHouseRichness:mean(per.map(x=>x.meanRichness)),
+    meanHouseRichnessWhenPresent:mean(present.map(x=>x.meanRichness)),
+    meanHouseEntropy:mean(per.map(x=>x.meanEntropy)),
+    meanHouseEntropyWhenPresent:mean(present.map(x=>x.meanEntropy)),
+    medianGroupLifetime:median(lifetimes),
+    maxGroupLifetime:lifetimes.length?Math.max(...lifetimes):0,
+    coMembershipPersistenceMean:co.mean,
+    coMembershipPersistenceMedian:co.median,
+    coMembershipPersistenceSamples:co.samples,
+    splits:0,merges:0,
+    extinct:per.at(-1).active===0
+  };
+}
+function strongNullValidation(conway,persistenceMatched,conwayFrames,compositionFrames,sizeLifetimeFrames){
+  for(let t=0;t<conway.length;t++)assert.equal(countActive(persistenceMatched[t]),countActive(conway[t]),'Persistence matched count mismatch');
+  for(let t=1;t<conway.length;t++)assert.equal(activeOverlap(persistenceMatched[t-1],persistenceMatched[t]),activeOverlap(conway[t-1],conway[t]),'Persistence matched transition overlap mismatch');
+  for(let t=0;t<conwayFrames.length;t++)assert.equal(frameCompositionSignature(compositionFrames[t]),frameCompositionSignature(conwayFrames[t]),'Composition matched frame mismatch');
+  for(let t=0;t<conwayFrames.length;t++)assert.deepEqual(sizeLifetimeFrames[t].map(g=>[g.trackId,g.size]),conwayFrames[t].map(g=>[g.trackId,g.size]),'Size/lifetime frame mismatch');
+  return {persistenceCountsAndOverlapExact:true,compositionPerGroupPerGenerationExact:true,sizeAndTrackScheduleExact:true};
+}
+function strongNullSuite({densities=[.1,.2,.3,.4,.5,.6,.7,.8],seeds=10,mappings=10,steps=200}={}){
+  const rows=[];let validations=0;
+  for(const density of densities)for(let si=0;si<seeds;si++)for(let mi=0;mi<mappings;mi++){
+    const seed=12000+si*97+Math.round(density*1000),map=mapping(22000+mi*193),life=conwayStates(seed,density,steps);
+    const tracked=trackSequence(life,map),pm=persistenceMatchedStates(life,seed+mi*1009);
+    const cm=compositionMatchedFrames(tracked.frames,map,seed+mi*2017);
+    const sl=sizeLifetimeMatchedFrames(tracked.frames,map,seed+mi*3011);
+    strongNullValidation(life,pm,tracked.frames,cm,sl);validations++;
+    rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeControl('PERSISTENCE_MATCHED',pm,map)});
+    rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeGroupFrames('COMPOSITION_MATCHED',cm)});
+    rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeGroupFrames('SIZE_LIFETIME_MATCHED',sl)});
+    rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeGroupFrames('CONWAY_GROUP_VIEW',tracked.frames)});
+  }
+  return {rows,validation:{cases:validations,persistenceCountsAndOverlapExact:true,compositionPerGroupPerGenerationExact:true,sizeAndTrackScheduleExact:true}};
+}
 
 function summarizeControl(name,states,map){
   const tr=trackSequence(states,map),pg=tr.perGen,present=pg.filter(x=>x.groups>0),co=coMembershipPersistence(states);
@@ -304,12 +445,18 @@ const determinism=determinismGate();
 const fullSocialDeterminism=fullSocialDeterminismGate();
 const metadataIsolation=metadataIsolationGate();
 const rows=structureSuite();
+const strongNull=strongNullSuite();
 const boundary=boundarySensitivity();
 const report={
-  version:'social-life-five-houses-fa-r0-r1-v4',
+  version:'social-life-five-houses-fa-r2-v1',
   baseline:{grid:'8x8',npcCount:64,boundary:'torus',rule:'B3/S23',houseCounts:HOUSE_COUNTS,stepsPerRun:200,densities:[.1,.2,.3,.4,.5,.6,.7,.8],seedsPerDensity:10,mappings:10},
   engineering:{patternTests,mappingValidation,determinism,fullSocialDeterminism,metadataIsolation,pass:true},
-  structure:{aggregate:aggregate(rows),byDensity:densityBreakdown(rows),boundarySensitivity:boundary},
+  structure:{
+    aggregate:aggregate(rows),
+    byDensity:densityBreakdown(rows),
+    boundarySensitivity:boundary,
+    strongNulls:{aggregate:aggregate(strongNull.rows),validation:strongNull.validation}
+  },
   gates:{
     engineCorrectness:'PASS',
     socialStructure:'UNKNOWN',
@@ -317,7 +464,7 @@ const report={
     economicUtility:'UNKNOWN',
     leadershipUtility:'UNKNOWN',
     mappingRobustness:'UNKNOWN',
-    strongControlComparison:'UNKNOWN',
+    strongControlComparison:'UNKNOWN_FA_R2_DATA_AVAILABLE',
     autonomy:'NOT_TESTED',
     authoritySafety:'PASS_RESEARCH_HARNESS_ONLY',
     final:'UNKNOWN'
@@ -326,7 +473,8 @@ const report={
     'This run closes engineering FA-R0 only and produces exploratory FA-R1 structure data.',
     'V3 fixes NPC mapping so mapping seeds move NPC identity + authoritative house together, and adds full social-state replay hashing.',
     'V4 computes co-membership persistence from component labels instead of materializing string pair sets; semantics are unchanged and runtime is bounded.',
-    'It does not implement persistence-matched/composition-matched strong nulls, NPC decisions, canonical economy, or leader trials.',
+    'FA-R2 adds exact persistence-matched, per-group composition-matched, and size+track-lifetime-matched null controls.',
+    'Strong nulls are structural controls only; NPC decisions, canonical economy, and leader trials are still not implemented.',
     'UNKNOWN must not be promoted to PASS from these structural results.'
   ]
 };
