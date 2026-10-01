@@ -381,6 +381,40 @@ function aggregate(rows){
   return out;
 }
 
+
+function stdev(a){if(a.length<2)return 0;const m=mean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)*(x-m),0)/(a.length-1))}
+function pairedStrongNullComparison(rows){
+  const key=r=>r.density+'|'+r.seedIndex+'|'+r.mappingIndex,byKey=new Map();
+  for(const r of rows){const k=key(r);if(!byKey.has(k))byKey.set(k,new Map());byKey.get(k).set(r.name,r)}
+  const metrics=['coMembershipPersistenceMean','meanGroupCount','meanGroupSizeWhenPresent','meanHouseRichnessWhenPresent','meanHouseEntropyWhenPresent'];
+  const nulls=['PERSISTENCE_MATCHED','COMPOSITION_MATCHED','SIZE_LIFETIME_MATCHED'];
+  const out={};
+  for(const nullName of nulls){
+    out[nullName]={};
+    for(const metric of metrics){
+      const diffs=[],wins=[],perDensity={};
+      for(const m of byKey.values()){
+        const c=m.get('CONWAY_GROUP_VIEW'),n=m.get(nullName);if(!c||!n)continue;
+        const d=c[metric]-n[metric];diffs.push(d);wins.push(Math.sign(d));
+        const density=m.get('CONWAY_GROUP_VIEW').density;
+        if(!perDensity[density])perDensity[density]=[];perDensity[density].push(d);
+      }
+      out[nullName][metric]={
+        pairs:diffs.length,
+        meanDelta:mean(diffs),
+        medianDelta:median(diffs),
+        sdDelta:stdev(diffs),
+        standardizedPairedDelta:stdev(diffs)>0?mean(diffs)/stdev(diffs):0,
+        winRate:mean(wins.map(x=>x>0?1:0)),
+        tieRate:mean(wins.map(x=>x===0?1:0)),
+        lossRate:mean(wins.map(x=>x<0?1:0)),
+        byDensity:Object.fromEntries(Object.entries(perDensity).map(([d,a])=>[d,{pairs:a.length,meanDelta:mean(a),medianDelta:median(a),winRate:mean(a.map(x=>x>0?1:0))}]))
+      };
+    }
+  }
+  return out;
+}
+
 function boundarySensitivity({densities=[.1,.2,.3,.4,.5,.6,.7,.8],seeds=50,steps=200}={}){
   const rows=[];
   for(const boundary of ['torus','fixed']) for(const density of densities) for(let si=0;si<seeds;si++){
@@ -448,14 +482,14 @@ const rows=structureSuite();
 const strongNull=strongNullSuite();
 const boundary=boundarySensitivity();
 const report={
-  version:'social-life-five-houses-fa-r2-v1',
+  version:'social-life-five-houses-fa-r2-v2',
   baseline:{grid:'8x8',npcCount:64,boundary:'torus',rule:'B3/S23',houseCounts:HOUSE_COUNTS,stepsPerRun:200,densities:[.1,.2,.3,.4,.5,.6,.7,.8],seedsPerDensity:10,mappings:10},
   engineering:{patternTests,mappingValidation,determinism,fullSocialDeterminism,metadataIsolation,pass:true},
   structure:{
     aggregate:aggregate(rows),
     byDensity:densityBreakdown(rows),
     boundarySensitivity:boundary,
-    strongNulls:{aggregate:aggregate(strongNull.rows),validation:strongNull.validation}
+    strongNulls:{aggregate:aggregate(strongNull.rows),validation:strongNull.validation,paired:pairedStrongNullComparison(strongNull.rows)}
   },
   gates:{
     engineCorrectness:'PASS',
@@ -474,6 +508,7 @@ const report={
     'V3 fixes NPC mapping so mapping seeds move NPC identity + authoritative house together, and adds full social-state replay hashing.',
     'V4 computes co-membership persistence from component labels instead of materializing string pair sets; semantics are unchanged and runtime is bounded.',
     'FA-R2 adds exact persistence-matched, per-group composition-matched, and size+track-lifetime-matched null controls.',
+    'FA-R2 V2 adds paired per-run deltas, win/tie/loss rates, and density-stratified comparisons; these are structural evidence, not gameplay utility proof.',
     'Strong nulls are structural controls only; NPC decisions, canonical economy, and leader trials are still not implemented.',
     'UNKNOWN must not be promoted to PASS from these structural results.'
   ]
