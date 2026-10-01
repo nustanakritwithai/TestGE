@@ -313,10 +313,10 @@ function strongNullValidation(conway,persistenceMatched,conwayFrames,composition
   for(let t=0;t<conwayFrames.length;t++)assert.deepEqual(sizeLifetimeFrames[t].map(g=>[g.trackId,g.size]),conwayFrames[t].map(g=>[g.trackId,g.size]),'Size/lifetime frame mismatch');
   return {persistenceCountsAndOverlapExact:true,compositionPerGroupPerGenerationExact:true,sizeAndTrackScheduleExact:true};
 }
-function strongNullSuite({densities=[.1,.2,.3,.4,.5,.6,.7,.8],seeds=10,mappings=10,steps=200}={}){
+function strongNullSuite({densities=[.1,.2,.3,.4,.5,.6,.7,.8],seeds=10,mappings=10,steps=200,seedBase=12000,mappingBase=22000,label='discovery'}={}){
   const rows=[];let validations=0;
   for(const density of densities)for(let si=0;si<seeds;si++)for(let mi=0;mi<mappings;mi++){
-    const seed=12000+si*97+Math.round(density*1000),map=mapping(22000+mi*193),life=conwayStates(seed,density,steps);
+    const seed=seedBase+si*97+Math.round(density*1000),map=mapping(mappingBase+mi*193),life=conwayStates(seed,density,steps);
     const tracked=trackSequence(life,map),pm=persistenceMatchedStates(life,seed+mi*1009);
     const cm=compositionMatchedFrames(tracked.frames,map,seed+mi*2017);
     const sl=sizeLifetimeMatchedFrames(tracked.frames,map,seed+mi*3011);
@@ -326,7 +326,7 @@ function strongNullSuite({densities=[.1,.2,.3,.4,.5,.6,.7,.8],seeds=10,mappings=
     rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeGroupFrames('SIZE_LIFETIME_MATCHED',sl)});
     rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeGroupFrames('CONWAY_GROUP_VIEW',tracked.frames)});
   }
-  return {rows,validation:{cases:validations,persistenceCountsAndOverlapExact:true,compositionPerGroupPerGenerationExact:true,sizeAndTrackScheduleExact:true}};
+  return {label,rows,validation:{cases:validations,persistenceCountsAndOverlapExact:true,compositionPerGroupPerGenerationExact:true,sizeAndTrackScheduleExact:true}};
 }
 
 function summarizeControl(name,states,map){
@@ -480,16 +480,20 @@ const fullSocialDeterminism=fullSocialDeterminismGate();
 const metadataIsolation=metadataIsolationGate();
 const rows=structureSuite();
 const strongNull=strongNullSuite();
+const strongNullHoldout=strongNullSuite({seedBase:52000,mappingBase:62000,label:'independent-holdout'});
 const boundary=boundarySensitivity();
 const report={
-  version:'social-life-five-houses-fa-r2-v2',
+  version:'social-life-five-houses-fa-r2-v3',
   baseline:{grid:'8x8',npcCount:64,boundary:'torus',rule:'B3/S23',houseCounts:HOUSE_COUNTS,stepsPerRun:200,densities:[.1,.2,.3,.4,.5,.6,.7,.8],seedsPerDensity:10,mappings:10},
   engineering:{patternTests,mappingValidation,determinism,fullSocialDeterminism,metadataIsolation,pass:true},
   structure:{
     aggregate:aggregate(rows),
     byDensity:densityBreakdown(rows),
     boundarySensitivity:boundary,
-    strongNulls:{aggregate:aggregate(strongNull.rows),validation:strongNull.validation,paired:pairedStrongNullComparison(strongNull.rows)}
+    strongNulls:{
+      discovery:{aggregate:aggregate(strongNull.rows),validation:strongNull.validation,paired:pairedStrongNullComparison(strongNull.rows)},
+      holdout:{aggregate:aggregate(strongNullHoldout.rows),validation:strongNullHoldout.validation,paired:pairedStrongNullComparison(strongNullHoldout.rows)}
+    }
   },
   gates:{
     engineCorrectness:'PASS',
@@ -509,6 +513,7 @@ const report={
     'V4 computes co-membership persistence from component labels instead of materializing string pair sets; semantics are unchanged and runtime is bounded.',
     'FA-R2 adds exact persistence-matched, per-group composition-matched, and size+track-lifetime-matched null controls.',
     'FA-R2 V2 adds paired per-run deltas, win/tie/loss rates, and density-stratified comparisons; these are structural evidence, not gameplay utility proof.',
+    'FA-R2 V3 repeats the complete strong-null protocol on an independent holdout seed/mapping family before any Resource→Production NPC coupling.',
     'Strong nulls are structural controls only; NPC decisions, canonical economy, and leader trials are still not implemented.',
     'UNKNOWN must not be promoted to PASS from these structural results.'
   ]
