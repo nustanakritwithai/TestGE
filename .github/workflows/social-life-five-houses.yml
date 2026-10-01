@@ -6,10 +6,12 @@ on:
       - 'research/social-life-five-houses-*'
     paths:
       - 'research/social-life-five-houses.mjs'
+      - 'research/social-life-rule-search.mjs'
       - '.github/workflows/social-life-five-houses.yml'
   pull_request:
     paths:
       - 'research/social-life-five-houses.mjs'
+      - 'research/social-life-rule-search.mjs'
       - '.github/workflows/social-life-five-houses.yml'
   workflow_dispatch:
 
@@ -23,3 +25,5 @@ jobs:
           node-version: '22'
       - name: Run Social Game of Life five-house harness
         run: node research/social-life-five-houses.mjs
+      - name: Search Life-like social rules
+        run: node research/social-life-rule-search.mjs
