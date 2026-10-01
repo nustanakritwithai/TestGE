@@ -259,12 +259,7 @@ function processProducer(world,profile,pid){
     if(commitReservation(world,pid,q.rid,q)){
       world.metrics.validSelections++;
       world.metrics.discoveryTimes.push(world.step-(job.createdAt??0));
-      if(q.socialDependent){
-        world.metrics.socialCommitWindows++;
-        world.metrics.socialCommitWindowSuccess++;
-        const latency=Math.max(1,world.step-q.observedAt);
-        world.metrics.windowRatios.push(q.remainingAtObservation/latency);
-      }
+      if(q.socialDependent)world.metrics.socialCommitWindowSuccess++;
     } else world.metrics.commitFailures++;
     return;
   }
@@ -284,6 +279,10 @@ function processProducer(world,profile,pid){
   const delay=BASE_DECISION_DELAY+Math.ceil(withSocial.considered/4);
   const remaining=socialDependent?socialRemaining(profile,world.step,pid,rid):0;
   p.pending={rid,commitAt:world.step+delay,observedAt:world.step,decisionChanged,socialDependent,remainingAtObservation:remaining};
+  if(socialDependent){
+    world.metrics.socialCommitWindows++;
+    world.metrics.windowRatios.push(remaining/Math.max(1,delay));
+  }
   trace(world,'PARTNER_SELECTED',{pid,rid,jobId:job.jobId,shadowChoice:shadow.choice,decisionChanged,socialDependent,considered:withSocial.considered,remaining});
 }
 function tick(world,profile){
@@ -395,7 +394,7 @@ const refusal=refusalGate();
 const r1=round1();
 const agg=aggregate(r1.rows);
 const report={
-  version:'fa-r3-resource-production-v1',
+  version:'fa-r3-resource-production-v2',
   scope:'TestGE behavioral proxy only; not Simclone canonical economy proof.',
   gates:{determinism,refusal,forcedActionCount:0,authorityBypass:0},
   round1:{
