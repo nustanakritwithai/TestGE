@@ -389,12 +389,72 @@ function round1({seeds=8,mappings=8}={}){
   return {config:{seeds,mappings,density:.4,cadence:100,scenarios,conditions},rows};
 }
 
+
+function matrixRound2({seeds=4,mappings=4}={}){
+  const conditions=['NO_SOCIAL','B3/S23','B238/S234','B38/S123','PM_B238','PM_B38'];
+  const scenarios=['S1_EASY','S2_MULTI','S3_SCARCITY','S4_INVALID','S5_CONTENTION'];
+  const densities=[.2,.3,.4,.5,.6],cadences=[10,50,100,500],rows=[];
+  for(const density of densities)for(const cadence of cadences)for(let si=0;si<seeds;si++)for(let mi=0;mi<mappings;mi++)for(const scenario of scenarios){
+    const horizon=Math.max(1200,cadence*6);
+    const base={scenario,density,cadence,horizon,worldSeed:141000+si*409+mi*17+Math.round(density*1000)+cadence,activeSeed:151000+si*521+Math.round(density*1000),mappingSeed:161000+mi*613};
+    for(const condition of conditions){
+      const r=runOne({...base,condition});
+      rows.push({...r,seedIndex:si,mappingIndex:mi});
+      assert.equal(r.forcedActionCount,0,'round2 forced action');
+      assert.equal(r.invalidTransfers,0,'round2 invalid transfer');
+      assert.equal(r.authorityBypass,0,'round2 authority bypass');
+    }
+  }
+  return {config:{seeds,mappings,densities,cadences,scenarios,conditions},rows};
+}
+function cellAggregate(rows){
+  const out={};
+  const key=r=>r.condition+'|'+r.density+'|'+r.cadence;
+  for(const k of [...new Set(rows.map(key))]){
+    const a=rows.filter(r=>key(r)===k),r=a[0];
+    out[k]={
+      condition:r.condition,density:r.density,cadence:r.cadence,runs:a.length,
+      productionCompletionRate:mean(a.map(x=>x.productionCompletionRate)),
+      partnerDiscoveryTimeMean:mean(a.map(x=>x.partnerDiscoveryTimeMean)),
+      failedSearchCost:mean(a.map(x=>x.failedSearchCost)),
+      socialAttributionRate:mean(a.map(x=>x.socialAttributionRate)),
+      socialCommitWindowRate:mean(a.map(x=>x.socialCommitWindowRate)),
+      meanSocialActionWindowRatio:mean(a.map(x=>x.meanSocialActionWindowRatio))
+    };
+  }
+  return out;
+}
+function matchedCellComparison(rows,candidate,nullName){
+  const cells=[];
+  for(const density of [.2,.3,.4,.5,.6])for(const cadence of [10,50,100,500]){
+    const a=rows.filter(r=>r.condition===candidate&&r.density===density&&r.cadence===cadence);
+    const b=rows.filter(r=>r.condition===nullName&&r.density===density&&r.cadence===cadence);
+    const pa=mean(a.map(x=>x.productionCompletionRate)),pb=mean(b.map(x=>x.productionCompletionRate));
+    const da=mean(a.map(x=>x.partnerDiscoveryTimeMean)),db=mean(b.map(x=>x.partnerDiscoveryTimeMean));
+    const ca=mean(a.map(x=>x.failedSearchCost)),cb=mean(b.map(x=>x.failedSearchCost));
+    const wa=mean(a.map(x=>x.socialCommitWindowRate)),wb=mean(b.map(x=>x.socialCommitWindowRate));
+    cells.push({density,cadence,completionDelta:pa-pb,discoveryAdvantage:db-da,failedSearchCostAdvantage:cb-ca,windowDelta:wa-wb});
+  }
+  return {
+    cells,
+    completionPositiveCells:cells.filter(x=>x.completionDelta>0).length,
+    completionTieCells:cells.filter(x=>x.completionDelta===0).length,
+    completionNegativeCells:cells.filter(x=>x.completionDelta<0).length,
+    meanCompletionDelta:mean(cells.map(x=>x.completionDelta)),
+    meanDiscoveryAdvantage:mean(cells.map(x=>x.discoveryAdvantage)),
+    meanFailedSearchCostAdvantage:mean(cells.map(x=>x.failedSearchCostAdvantage)),
+    meanWindowDelta:mean(cells.map(x=>x.windowDelta))
+  };
+}
+
 const determinism=determinismGate();
 const refusal=refusalGate();
 const r1=round1();
 const agg=aggregate(r1.rows);
+const r2=matrixRound2();
+const r2Agg=aggregate(r2.rows);
 const report={
-  version:'fa-r3-resource-production-v2',
+  version:'fa-r3-resource-production-v3',
   scope:'TestGE behavioral proxy only; not Simclone canonical economy proof.',
   gates:{determinism,refusal,forcedActionCount:0,authorityBypass:0},
   round1:{
@@ -409,8 +469,17 @@ const report={
       B38_vs_PM:pairedDelta(r1.rows,'B38/S123','PM_B38')
     }
   },
+  round2:{
+    config:r2.config,
+    aggregate:r2Agg,
+    byCell:cellAggregate(r2.rows),
+    matchedComparisons:{
+      B238_vs_PM:matchedCellComparison(r2.rows,'B238/S234','PM_B238'),
+      B38_vs_PM:matchedCellComparison(r2.rows,'B38/S123','PM_B38')
+    }
+  },
   interpretation:{
-    current:'ROUND_1_ONLY',
+    current:'ROUND_2_DENSITY_CADENCE_MATRIX',
     final:'UNKNOWN',
     rule:'Do not promote to FA-R3 PASS until density/cadence expansion and independent holdout reproduce functional advantage.'
   }
