@@ -7,11 +7,13 @@ on:
     paths:
       - 'research/social-life-five-houses.mjs'
       - 'research/social-life-rule-search.mjs'
+      - 'research/social-life-fa-r3-resource-production.mjs'
       - '.github/workflows/social-life-five-houses.yml'
   pull_request:
     paths:
       - 'research/social-life-five-houses.mjs'
       - 'research/social-life-rule-search.mjs'
+      - 'research/social-life-fa-r3-resource-production.mjs'
       - '.github/workflows/social-life-five-houses.yml'
   workflow_dispatch:
 
@@ -27,3 +29,5 @@ jobs:
         run: node research/social-life-five-houses.mjs
       - name: Search Life-like social rules
         run: node research/social-life-rule-search.mjs
+      - name: Run FA-R3 Resource to Production causal harness
+        run: node research/social-life-fa-r3-resource-production.mjs
