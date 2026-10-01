@@ -133,21 +133,27 @@ function groupDescriptors(active,map){
 function jaccard(a,b){const A=new Set(a),B=new Set(b);let inter=0;for(const x of A)if(B.has(x))inter++;return inter/(A.size+B.size-inter||1)}
 function mean(a){return a.length?a.reduce((s,x)=>s+x,0)/a.length:0}
 function median(a){if(!a.length)return 0;const b=[...a].sort((x,y)=>x-y),m=Math.floor(b.length/2);return b.length%2?b[m]:(b[m-1]+b[m])/2}
-function coMembershipPairs(active,map){
-  const pairs=new Set();
-  for(const cells of components(active)){
-    const members=cells.map(cell=>map[cell].npcId).sort();
-    for(let i=0;i<members.length;i++)for(let j=i+1;j<members.length;j++)pairs.add(members[i]+'|'+members[j]);
-  }
-  return pairs;
+function choose2(n){return n>1?n*(n-1)/2:0}
+function componentLabels(active){
+  const groups=components(active),labels=new Int16Array(active.length);labels.fill(-1);
+  for(let gi=0;gi<groups.length;gi++)for(const cell of groups[gi])labels[cell]=gi;
+  return {groups,labels};
 }
-function coMembershipPersistence(states,map){
+function coMembershipPersistence(states){
   const values=[];
   for(let t=0;t<states.length-1;t++){
-    const a=coMembershipPairs(states[t],map);if(a.size===0)continue;
-    const b=coMembershipPairs(states[t+1],map);let retained=0;
-    for(const p of a)if(b.has(p))retained++;
-    values.push(retained/a.size);
+    const current=componentLabels(states[t]),next=componentLabels(states[t+1]);
+    let denominator=0,retained=0;
+    for(const cells of current.groups){
+      denominator+=choose2(cells.length);
+      const byNext=new Map();
+      for(const cell of cells){
+        const label=next.labels[cell];
+        if(label>=0)byNext.set(label,(byNext.get(label)||0)+1);
+      }
+      for(const n of byNext.values())retained+=choose2(n);
+    }
+    if(denominator>0)values.push(retained/denominator);
   }
   return {samples:values.length,mean:mean(values),median:median(values)};
 }
@@ -183,7 +189,7 @@ function shuffleStates(conway,seed){const R=rng(seed^0x55aa55aa),out=[];for(cons
 function noSocialStates(steps){return Array.from({length:steps+1},()=>new Uint8Array(N))}
 
 function summarizeControl(name,states,map){
-  const tr=trackSequence(states,map),pg=tr.perGen,present=pg.filter(x=>x.groups>0),co=coMembershipPersistence(states,map);
+  const tr=trackSequence(states,map),pg=tr.perGen,present=pg.filter(x=>x.groups>0),co=coMembershipPersistence(states);
   return {
     name,
     activeRatio:mean(pg.map(x=>x.active/N)),
@@ -300,7 +306,7 @@ const metadataIsolation=metadataIsolationGate();
 const rows=structureSuite();
 const boundary=boundarySensitivity();
 const report={
-  version:'social-life-five-houses-fa-r0-r1-v3',
+  version:'social-life-five-houses-fa-r0-r1-v4',
   baseline:{grid:'8x8',npcCount:64,boundary:'torus',rule:'B3/S23',houseCounts:HOUSE_COUNTS,stepsPerRun:200,densities:[.1,.2,.3,.4,.5,.6,.7,.8],seedsPerDensity:10,mappings:10},
   engineering:{patternTests,mappingValidation,determinism,fullSocialDeterminism,metadataIsolation,pass:true},
   structure:{aggregate:aggregate(rows),byDensity:densityBreakdown(rows),boundarySensitivity:boundary},
@@ -319,6 +325,7 @@ const report={
   notes:[
     'This run closes engineering FA-R0 only and produces exploratory FA-R1 structure data.',
     'V3 fixes NPC mapping so mapping seeds move NPC identity + authoritative house together, and adds full social-state replay hashing.',
+    'V4 computes co-membership persistence from component labels instead of materializing string pair sets; semantics are unchanged and runtime is bounded.',
     'It does not implement persistence-matched/composition-matched strong nulls, NPC decisions, canonical economy, or leader trials.',
     'UNKNOWN must not be promoted to PASS from these structural results.'
   ]
