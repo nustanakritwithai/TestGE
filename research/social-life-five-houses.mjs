@@ -1,0 +1,525 @@
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+
+const W=8,H=8,N=W*H;
+const HOUSE_COUNTS={RESOURCE:20,PRODUCTION:14,MARKET:10,ADVENTURE:14,LEADER:6};
+
+function rng(seed){let a=seed>>>0;return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function xy(i,w=W){return[i%w,Math.floor(i/w)]}
+function cloneGrid(g){return Uint8Array.from(g)}
+function gridFromCoords(w,h,coords){const g=new Uint8Array(w*h);for(const [x,y] of coords)g[y*w+x]=1;return g}
+function countActive(g){let n=0;for(const v of g)n+=v;return n}
+function sameGrid(a,b){if(a.length!==b.length)return false;for(let i=0;i<a.length;i++)if(a[i]!==b[i])return false;return true}
+function hashObject(v){return createHash('sha256').update(JSON.stringify(v)).digest('hex')}
+function bitString(g){return Array.from(g).join('')}
+
+function neighborIndices(i,w,h,boundary='torus'){
+  const [x,y]=xy(i,w),out=[];
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    if(dx===0&&dy===0)continue;
+    let nx=x+dx,ny=y+dy;
+    if(boundary==='torus'){nx=(nx+w)%w;ny=(ny+h)%h;out.push(ny*w+nx)}
+    else if(nx>=0&&nx<w&&ny>=0&&ny<h)out.push(ny*w+nx);
+  }
+  return out;
+}
+function stepLife(current,{w=W,h=H,boundary='torus'}={}){
+  const next=new Uint8Array(current.length);
+  for(let i=0;i<current.length;i++){
+    let live=0;for(const j of neighborIndices(i,w,h,boundary))live+=current[j];
+    next[i]=current[i]?(live===2||live===3?1:0):(live===3?1:0);
+  }
+  return next;
+}
+function runLife(initial,steps,opts={}){let g=cloneGrid(initial);for(let s=0;s<steps;s++)g=stepLife(g,opts);return g}
+
+function validatePatterns(){
+  const block=gridFromCoords(6,6,[[2,2],[3,2],[2,3],[3,3]]);
+  assert(sameGrid(runLife(block,10,{w:6,h:6,boundary:'fixed'}),block),'Block still life failed');
+  const blinkH=gridFromCoords(7,7,[[2,3],[3,3],[4,3]]);
+  const blinkV=gridFromCoords(7,7,[[3,2],[3,3],[3,4]]);
+  assert(sameGrid(runLife(blinkH,1,{w:7,h:7,boundary:'fixed'}),blinkV),'Blinker phase 1 failed');
+  assert(sameGrid(runLife(blinkH,2,{w:7,h:7,boundary:'fixed'}),blinkH),'Blinker period 2 failed');
+  const glider0=gridFromCoords(10,10,[[2,1],[3,2],[1,3],[2,3],[3,3]]);
+  const glider4=gridFromCoords(10,10,[[3,2],[4,3],[2,4],[3,4],[4,4]]);
+  assert(sameGrid(runLife(glider0,4,{w:10,h:10,boundary:'fixed'}),glider4),'Glider translation failed');
+  return {block:true,blinker:true,glider:true};
+}
+
+function seededInitial(seed,density,w=W,h=H){const R=rng(seed),g=new Uint8Array(w*h);for(let i=0;i<g.length;i++)g[i]=R()<density?1:0;return g}
+function serialize(state){return JSON.stringify({generation:state.generation,w:state.w,h:state.h,boundary:state.boundary,active:Array.from(state.active)})}
+function deserialize(s){const q=JSON.parse(s);return{...q,active:Uint8Array.from(q.active)}}
+function advanceState(state,steps){let out={...state,active:cloneGrid(state.active)};for(let i=0;i<steps;i++){out.active=stepLife(out.active,out);out.generation++}return out}
+function makeSocialState({mappingSeed=51001,activeSeed=9101,density=.37,boundary='torus'}={}){
+  return {version:1,generation:0,w:W,h:H,boundary,initialSeed:activeSeed,mappingSeed,npcCellMapping:mapping(mappingSeed),active:seededInitial(activeSeed,density)};
+}
+function serializeSocialState(state){
+  return JSON.stringify({...state,active:Array.from(state.active)});
+}
+function deserializeSocialState(serialized){
+  const q=JSON.parse(serialized);return {...q,active:Uint8Array.from(q.active)};
+}
+function socialStateHash(state){
+  return hashObject({version:state.version,generation:state.generation,w:state.w,h:state.h,boundary:state.boundary,initialSeed:state.initialSeed,mappingSeed:state.mappingSeed,npcCellMapping:state.npcCellMapping,activeBits:bitString(state.active)});
+}
+function advanceSocialState(state,steps){
+  let out={...state,npcCellMapping:state.npcCellMapping.map(x=>({...x})),active:cloneGrid(state.active)};
+  for(let i=0;i<steps;i++){out.active=stepLife(out.active,out);out.generation++}
+  return out;
+}
+function fullSocialDeterminismGate(){
+  const start=makeSocialState();
+  const continuous=advanceSocialState(start,2000);
+  const first=advanceSocialState(start,1000);
+  const resumed=advanceSocialState(deserializeSocialState(serializeSocialState(first)),1000);
+  const a=socialStateHash(continuous),b=socialStateHash(resumed);
+  assert.equal(a,b,'Full social save/load replay diverged');
+  return {continuousHash:a,resumedHash:b,identical:true,mappingPersisted:true};
+}
+function determinismGate(){
+  const start={generation:0,w:W,h:H,boundary:'torus',active:seededInitial(9101,.37)};
+  const continuous=advanceState(start,2000);
+  const first=advanceState(start,1000);
+  const resumed=advanceState(deserialize(serialize(first)),1000);
+  const a=hashObject({generation:continuous.generation,bits:bitString(continuous.active)});
+  const b=hashObject({generation:resumed.generation,bits:bitString(resumed.active)});
+  assert.equal(a,b,'Save/load replay diverged');
+  return {continuousHash:a,resumedHash:b,identical:true};
+}
+
+function baseRoster(){
+  const a=[];let id=0;
+  for(const [house,n] of Object.entries(HOUSE_COUNTS))for(let i=0;i<n;i++)a.push({npcId:'NPC-'+String(id++).padStart(2,'0'),house});
+  assert.equal(a.length,N);return a;
+}
+function shuffle(a,R){const b=[...a];for(let i=b.length-1;i>0;i--){const j=Math.floor(R()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+function mapping(seed){
+  const people=shuffle(baseRoster(),rng(seed));
+  return people.map((p,cell)=>({...p,cell}));
+}
+function mappingGate(){
+  const a=mapping(12345),b=mapping(12345),c=mapping(12346);
+  assert.deepEqual(a,b,'Same mapping seed must reproduce the same NPC-cell mapping');
+  assert.notEqual(a.map(x=>x.npcId).join(','),c.map(x=>x.npcId).join(','),'Different mapping seeds must move NPC identities');
+  assert.equal(new Set(a.map(x=>x.npcId)).size,N,'NPC mapping must be a bijection');
+  const counts=Object.fromEntries(Object.keys(HOUSE_COUNTS).map(h=>[h,a.filter(x=>x.house===h).length]));
+  assert.deepEqual(counts,HOUSE_COUNTS,'Mapping must preserve authoritative house counts');
+  return {deterministic:true,bijection:true,houseCountsPreserved:true,mappingHash:hashObject(a),alternateMappingHash:hashObject(c)};
+}
+
+function components(active,{w=W,h=H,boundary='torus'}={}){
+  const seen=new Uint8Array(active.length),out=[];
+  for(let start=0;start<active.length;start++){
+    if(!active[start]||seen[start])continue;
+    const q=[start],cells=[];seen[start]=1;
+    while(q.length){const i=q.shift();cells.push(i);for(const j of neighborIndices(i,w,h,boundary))if(active[j]&&!seen[j]){seen[j]=1;q.push(j)}}
+    cells.sort((a,b)=>a-b);out.push(cells);
+  }
+  out.sort((a,b)=>a[0]-b[0]);return out;
+}
+function entropyNormalized(counts){
+  const vals=Object.values(counts).filter(x=>x>0),total=vals.reduce((a,b)=>a+b,0);
+  if(total<=1||vals.length<=1)return 0;
+  let h=0;for(const n of vals){const p=n/total;h-=p*Math.log(p)}
+  return h/Math.log(Math.min(5,total));
+}
+function groupDescriptors(active,map){
+  return components(active).map(cells=>{
+    const counts={RESOURCE:0,PRODUCTION:0,MARKET:0,ADVENTURE:0,LEADER:0},members=[];
+    for(const cell of cells){counts[map[cell].house]++;members.push(map[cell].npcId)}
+    return {cells,members,size:cells.length,houseCounts:counts,houseRichness:Object.values(counts).filter(x=>x>0).length,houseEntropy:entropyNormalized(counts)};
+  });
+}
+function jaccard(a,b){const A=new Set(a),B=new Set(b);let inter=0;for(const x of A)if(B.has(x))inter++;return inter/(A.size+B.size-inter||1)}
+function mean(a){return a.length?a.reduce((s,x)=>s+x,0)/a.length:0}
+function median(a){if(!a.length)return 0;const b=[...a].sort((x,y)=>x-y),m=Math.floor(b.length/2);return b.length%2?b[m]:(b[m-1]+b[m])/2}
+function choose2(n){return n>1?n*(n-1)/2:0}
+function componentLabels(active){
+  const groups=components(active),labels=new Int16Array(active.length);labels.fill(-1);
+  for(let gi=0;gi<groups.length;gi++)for(const cell of groups[gi])labels[cell]=gi;
+  return {groups,labels};
+}
+function coMembershipPersistence(states){
+  const values=[];
+  for(let t=0;t<states.length-1;t++){
+    const current=componentLabels(states[t]),next=componentLabels(states[t+1]);
+    let denominator=0,retained=0;
+    for(const cells of current.groups){
+      denominator+=choose2(cells.length);
+      const byNext=new Map();
+      for(const cell of cells){
+        const label=next.labels[cell];
+        if(label>=0)byNext.set(label,(byNext.get(label)||0)+1);
+      }
+      for(const n of byNext.values())retained+=choose2(n);
+    }
+    if(denominator>0)values.push(retained/denominator);
+  }
+  return {samples:values.length,mean:mean(values),median:median(values)};
+}
+
+function trackSequence(states,map){
+  let prev=[],nextId=1,splits=0,merges=0;const tracks=new Map(),perGen=[],frameHistory=[];
+  for(let generation=0;generation<states.length;generation++){
+    const gs=groupDescriptors(states[generation],map).map(g=>({...g,trackId:null})),pairs=[];
+    for(let i=0;i<prev.length;i++)for(let j=0;j<gs.length;j++){const score=jaccard(prev[i].members,gs[j].members);if(score>0)pairs.push({i,j,score})}
+    for(let i=0;i<prev.length;i++)if(pairs.filter(p=>p.i===i&&p.score>=.25).length>1)splits++;
+    for(let j=0;j<gs.length;j++)if(pairs.filter(p=>p.j===j&&p.score>=.25).length>1)merges++;
+    pairs.sort((a,b)=>b.score-a.score||a.i-b.i||a.j-b.j);
+    const usedPrev=new Set(),usedCur=new Set();
+    for(const p of pairs){
+      if(p.score<.5||usedPrev.has(p.i)||usedCur.has(p.j))continue;
+      gs[p.j].trackId=prev[p.i].trackId;usedPrev.add(p.i);usedCur.add(p.j);
+    }
+    for(const g of gs){
+      if(!g.trackId){g.trackId='G'+nextId++;tracks.set(g.trackId,{born:generation,last:generation,lifetime:1})}
+      else{const t=tracks.get(g.trackId);t.last=generation;t.lifetime=t.last-t.born+1}
+    }
+    perGen.push({active:countActive(states[generation]),groups:gs.length,meanGroupSize:mean(gs.map(g=>g.size)),meanRichness:mean(gs.map(g=>g.houseRichness)),meanEntropy:mean(gs.map(g=>g.houseEntropy))});
+    frameHistory.push(gs.map(g=>({trackId:g.trackId,members:[...g.members],size:g.size,houseCounts:{...g.houseCounts},houseRichness:g.houseRichness,houseEntropy:g.houseEntropy})));
+    prev=gs;
+  }
+  const lifetimes=[...tracks.values()].map(x=>x.lifetime);
+  return {perGen,frames:frameHistory,lifetimes,splits,merges,meanLifetime:mean(lifetimes),medianLifetime:median(lifetimes),maxLifetime:lifetimes.length?Math.max(...lifetimes):0};
+}
+
+function conwayStates(seed,density,steps){let g=seededInitial(seed,density),a=[cloneGrid(g)];for(let i=0;i<steps;i++){g=stepLife(g);a.push(cloneGrid(g))}return a}
+function fixedStates(seed,density,steps){const g=seededInitial(seed,density);return Array.from({length:steps+1},()=>cloneGrid(g))}
+function randomStates(seed,density,steps){const R=rng(seed^0xabcddcba),a=[];for(let s=0;s<=steps;s++){const g=new Uint8Array(N);for(let i=0;i<N;i++)g[i]=R()<density?1:0;a.push(g)}return a}
+function shuffleStates(conway,seed){const R=rng(seed^0x55aa55aa),out=[];for(const src of conway){const n=countActive(src),positions=shuffle([...Array(N).keys()],R).slice(0,n),g=new Uint8Array(N);for(const p of positions)g[p]=1;out.push(g)}return out}
+function noSocialStates(steps){return Array.from({length:steps+1},()=>new Uint8Array(N))}
+
+
+function activeIndices(g){const a=[];for(let i=0;i<g.length;i++)if(g[i])a.push(i);return a}
+function activeOverlap(a,b){let n=0;for(let i=0;i<a.length;i++)if(a[i]&&b[i])n++;return n}
+function persistenceMatchedStates(conway,seed){
+  const R=rng(seed^0x3b9aca07),out=[];
+  const n0=countActive(conway[0]),g0=new Uint8Array(N);
+  for(const i of shuffle([...Array(N).keys()],R).slice(0,n0))g0[i]=1;
+  out.push(g0);
+  for(let t=1;t<conway.length;t++){
+    const targetCount=countActive(conway[t]),targetOverlap=activeOverlap(conway[t-1],conway[t]);
+    const prevActive=activeIndices(out[t-1]),prevInactive=[];for(let i=0;i<N;i++)if(!out[t-1][i])prevInactive.push(i);
+    assert(targetOverlap<=Math.min(prevActive.length,targetCount),'Persistence target overlap infeasible');
+    const births=targetCount-targetOverlap;
+    assert(births<=prevInactive.length,'Persistence target births infeasible');
+    const next=new Uint8Array(N);
+    for(const i of shuffle(prevActive,R).slice(0,targetOverlap))next[i]=1;
+    for(const i of shuffle(prevInactive,R).slice(0,births))next[i]=1;
+    assert.equal(countActive(next),targetCount,'Persistence matched active count drift');
+    assert.equal(activeOverlap(out[t-1],next),targetOverlap,'Persistence matched overlap drift');
+    out.push(next);
+  }
+  return out;
+}
+function houseVectorKey(counts){
+  return ['RESOURCE','PRODUCTION','MARKET','ADVENTURE','LEADER'].map(h=>counts[h]||0).join(',');
+}
+function frameCompositionSignature(frame){
+  return frame.map(g=>g.size+'|'+houseVectorKey(g.houseCounts)).sort().join(';');
+}
+function freshGroup(id,members,houseById){
+  const houseCounts={RESOURCE:0,PRODUCTION:0,MARKET:0,ADVENTURE:0,LEADER:0};
+  for(const npcId of members)houseCounts[houseById.get(npcId)]++;
+  return {trackId:id,members:[...members],size:members.length,houseCounts,houseRichness:Object.values(houseCounts).filter(x=>x>0).length,houseEntropy:entropyNormalized(houseCounts)};
+}
+function compositionMatchedFrames(conwayFrames,map,seed){
+  const R=rng(seed^0x6a09e667),houseById=new Map(map.map(x=>[x.npcId,x.house])),rosterByHouse={};
+  for(const h of Object.keys(HOUSE_COUNTS))rosterByHouse[h]=map.filter(x=>x.house===h).map(x=>x.npcId);
+  const frames=[];
+  for(let t=0;t<conwayFrames.length;t++){
+    const pools=Object.fromEntries(Object.keys(HOUSE_COUNTS).map(h=>[h,shuffle(rosterByHouse[h],R)]));
+    const offsets=Object.fromEntries(Object.keys(HOUSE_COUNTS).map(h=>[h,0]));
+    const groups=[];
+    for(let gi=0;gi<conwayFrames[t].length;gi++){
+      const spec=conwayFrames[t][gi],members=[];
+      for(const h of Object.keys(HOUSE_COUNTS)){
+        const need=spec.houseCounts[h]||0,start=offsets[h],end=start+need;
+        assert(end<=pools[h].length,'Composition matched house pool exhausted');
+        members.push(...pools[h].slice(start,end));offsets[h]=end;
+      }
+      groups.push(freshGroup('CM-'+t+'-'+gi,members,houseById));
+    }
+    assert.equal(frameCompositionSignature(groups),frameCompositionSignature(conwayFrames[t]),'Composition matched signature drift');
+    frames.push(groups);
+  }
+  return frames;
+}
+function sizeLifetimeMatchedFrames(conwayFrames,map,seed){
+  const R=rng(seed^0xbb67ae85),houseById=new Map(map.map(x=>[x.npcId,x.house])),roster=map.map(x=>x.npcId),frames=[];
+  for(let t=0;t<conwayFrames.length;t++){
+    const pool=shuffle(roster,R);let offset=0;const groups=[];
+    for(const spec of conwayFrames[t]){
+      const members=pool.slice(offset,offset+spec.size);offset+=spec.size;
+      assert.equal(members.length,spec.size,'Size/lifetime matched roster exhausted');
+      groups.push(freshGroup(spec.trackId,members,houseById));
+    }
+    assert.deepEqual(groups.map(g=>[g.trackId,g.size]),conwayFrames[t].map(g=>[g.trackId,g.size]),'Size/lifetime schedule drift');
+    frames.push(groups);
+  }
+  return frames;
+}
+function framePairSet(frame){
+  const pairs=new Set();
+  for(const g of frame){
+    const ids=g.members.map(x=>Number(x.slice(4))).sort((a,b)=>a-b);
+    for(let i=0;i<ids.length;i++)for(let j=i+1;j<ids.length;j++)pairs.add(ids[i]*N+ids[j]);
+  }
+  return pairs;
+}
+function groupFrameCoPersistence(frames){
+  const vals=[];
+  for(let t=0;t<frames.length-1;t++){
+    const a=framePairSet(frames[t]);if(a.size===0)continue;
+    const b=framePairSet(frames[t+1]);let kept=0;for(const p of a)if(b.has(p))kept++;
+    vals.push(kept/a.size);
+  }
+  return {samples:vals.length,mean:mean(vals),median:median(vals)};
+}
+function summarizeGroupFrames(name,frames){
+  const per=frames.map(groups=>{
+    const members=new Set(groups.flatMap(g=>g.members));
+    return {active:members.size,groups:groups.length,meanGroupSize:mean(groups.map(g=>g.size)),meanRichness:mean(groups.map(g=>g.houseRichness)),meanEntropy:mean(groups.map(g=>g.houseEntropy))};
+  });
+  const present=per.filter(x=>x.groups>0),co=groupFrameCoPersistence(frames),trackStats=new Map();
+  for(let t=0;t<frames.length;t++)for(const g of frames[t]){
+    if(!trackStats.has(g.trackId))trackStats.set(g.trackId,{born:t,last:t});
+    else trackStats.get(g.trackId).last=t;
+  }
+  const lifetimes=[...trackStats.values()].map(x=>x.last-x.born+1);
+  return {
+    name,
+    activeRatio:mean(per.map(x=>x.active/N)),
+    meanGroupCount:mean(per.map(x=>x.groups)),
+    meanGroupSize:mean(per.map(x=>x.meanGroupSize)),
+    meanGroupSizeWhenPresent:mean(present.map(x=>x.meanGroupSize)),
+    meanHouseRichness:mean(per.map(x=>x.meanRichness)),
+    meanHouseRichnessWhenPresent:mean(present.map(x=>x.meanRichness)),
+    meanHouseEntropy:mean(per.map(x=>x.meanEntropy)),
+    meanHouseEntropyWhenPresent:mean(present.map(x=>x.meanEntropy)),
+    medianGroupLifetime:median(lifetimes),
+    maxGroupLifetime:lifetimes.length?Math.max(...lifetimes):0,
+    coMembershipPersistenceMean:co.mean,
+    coMembershipPersistenceMedian:co.median,
+    coMembershipPersistenceSamples:co.samples,
+    splits:0,merges:0,
+    extinct:per.at(-1).active===0
+  };
+}
+function strongNullValidation(conway,persistenceMatched,conwayFrames,compositionFrames,sizeLifetimeFrames){
+  for(let t=0;t<conway.length;t++)assert.equal(countActive(persistenceMatched[t]),countActive(conway[t]),'Persistence matched count mismatch');
+  for(let t=1;t<conway.length;t++)assert.equal(activeOverlap(persistenceMatched[t-1],persistenceMatched[t]),activeOverlap(conway[t-1],conway[t]),'Persistence matched transition overlap mismatch');
+  for(let t=0;t<conwayFrames.length;t++)assert.equal(frameCompositionSignature(compositionFrames[t]),frameCompositionSignature(conwayFrames[t]),'Composition matched frame mismatch');
+  for(let t=0;t<conwayFrames.length;t++)assert.deepEqual(sizeLifetimeFrames[t].map(g=>[g.trackId,g.size]),conwayFrames[t].map(g=>[g.trackId,g.size]),'Size/lifetime frame mismatch');
+  return {persistenceCountsAndOverlapExact:true,compositionPerGroupPerGenerationExact:true,sizeAndTrackScheduleExact:true};
+}
+function strongNullSuite({densities=[.1,.2,.3,.4,.5,.6,.7,.8],seeds=10,mappings=10,steps=200,seedBase=12000,mappingBase=22000,label='discovery'}={}){
+  const rows=[];let validations=0;
+  for(const density of densities)for(let si=0;si<seeds;si++)for(let mi=0;mi<mappings;mi++){
+    const seed=seedBase+si*97+Math.round(density*1000),map=mapping(mappingBase+mi*193),life=conwayStates(seed,density,steps);
+    const tracked=trackSequence(life,map),pm=persistenceMatchedStates(life,seed+mi*1009);
+    const cm=compositionMatchedFrames(tracked.frames,map,seed+mi*2017);
+    const sl=sizeLifetimeMatchedFrames(tracked.frames,map,seed+mi*3011);
+    strongNullValidation(life,pm,tracked.frames,cm,sl);validations++;
+    rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeControl('PERSISTENCE_MATCHED',pm,map)});
+    rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeGroupFrames('COMPOSITION_MATCHED',cm)});
+    rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeGroupFrames('SIZE_LIFETIME_MATCHED',sl)});
+    rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeGroupFrames('CONWAY_GROUP_VIEW',tracked.frames)});
+  }
+  return {label,rows,validation:{cases:validations,persistenceCountsAndOverlapExact:true,compositionPerGroupPerGenerationExact:true,sizeAndTrackScheduleExact:true}};
+}
+
+function summarizeControl(name,states,map){
+  const tr=trackSequence(states,map),pg=tr.perGen,present=pg.filter(x=>x.groups>0),co=coMembershipPersistence(states);
+  return {
+    name,
+    activeRatio:mean(pg.map(x=>x.active/N)),
+    meanGroupCount:mean(pg.map(x=>x.groups)),
+    meanGroupSize:mean(pg.map(x=>x.meanGroupSize)),
+    meanGroupSizeWhenPresent:mean(present.map(x=>x.meanGroupSize)),
+    meanHouseRichness:mean(pg.map(x=>x.meanRichness)),
+    meanHouseRichnessWhenPresent:mean(present.map(x=>x.meanRichness)),
+    meanHouseEntropy:mean(pg.map(x=>x.meanEntropy)),
+    meanHouseEntropyWhenPresent:mean(present.map(x=>x.meanEntropy)),
+    medianGroupLifetime:tr.medianLifetime,
+    maxGroupLifetime:tr.maxLifetime,
+    coMembershipPersistenceMean:co.mean,
+    coMembershipPersistenceMedian:co.median,
+    coMembershipPersistenceSamples:co.samples,
+    splits:tr.splits,
+    merges:tr.merges,
+    extinct:pg.at(-1).active===0
+  };
+}
+function structureSuite({densities=[.1,.2,.3,.4,.5,.6,.7,.8],seeds=10,mappings=10,steps=200}={}){
+  const rows=[];
+  for(const density of densities)for(let si=0;si<seeds;si++)for(let mi=0;mi<mappings;mi++){
+    const seed=12000+si*97+Math.round(density*1000),map=mapping(22000+mi*193),life=conwayStates(seed,density,steps);
+    const controls=[['NO_SOCIAL',noSocialStates(steps)],['FIXED',fixedStates(seed,density,steps)],['RANDOM',randomStates(seed,density,steps)],['SHUFFLE',shuffleStates(life,seed)],['CONWAY',life]];
+    for(const [name,states] of controls)rows.push({density,seedIndex:si,mappingIndex:mi,...summarizeControl(name,states,map)});
+  }
+  return rows;
+}
+function aggregate(rows){
+  const by=new Map();for(const r of rows){if(!by.has(r.name))by.set(r.name,[]);by.get(r.name).push(r)}
+  const out={};
+  for(const [name,a] of by)out[name]={
+    runs:a.length,
+    activeRatio:mean(a.map(x=>x.activeRatio)),
+    meanGroupCount:mean(a.map(x=>x.meanGroupCount)),
+    meanGroupSize:mean(a.map(x=>x.meanGroupSize)),
+    meanGroupSizeWhenPresent:mean(a.map(x=>x.meanGroupSizeWhenPresent)),
+    meanHouseRichness:mean(a.map(x=>x.meanHouseRichness)),
+    meanHouseRichnessWhenPresent:mean(a.map(x=>x.meanHouseRichnessWhenPresent)),
+    meanHouseEntropy:mean(a.map(x=>x.meanHouseEntropy)),
+    meanHouseEntropyWhenPresent:mean(a.map(x=>x.meanHouseEntropyWhenPresent)),
+    medianGroupLifetime:median(a.map(x=>x.medianGroupLifetime)),
+    coMembershipPersistenceMean:mean(a.map(x=>x.coMembershipPersistenceMean)),
+    coMembershipPersistenceMedian:median(a.map(x=>x.coMembershipPersistenceMedian)),
+    extinctionFrequency:mean(a.map(x=>x.extinct?1:0))
+  };
+  return out;
+}
+
+
+function stdev(a){if(a.length<2)return 0;const m=mean(a);return Math.sqrt(a.reduce((s,x)=>s+(x-m)*(x-m),0)/(a.length-1))}
+function pairedStrongNullComparison(rows){
+  const key=r=>r.density+'|'+r.seedIndex+'|'+r.mappingIndex,byKey=new Map();
+  for(const r of rows){const k=key(r);if(!byKey.has(k))byKey.set(k,new Map());byKey.get(k).set(r.name,r)}
+  const metrics=['coMembershipPersistenceMean','meanGroupCount','meanGroupSizeWhenPresent','meanHouseRichnessWhenPresent','meanHouseEntropyWhenPresent'];
+  const nulls=['PERSISTENCE_MATCHED','COMPOSITION_MATCHED','SIZE_LIFETIME_MATCHED'];
+  const out={};
+  for(const nullName of nulls){
+    out[nullName]={};
+    for(const metric of metrics){
+      const diffs=[],wins=[],perDensity={};
+      for(const m of byKey.values()){
+        const c=m.get('CONWAY_GROUP_VIEW'),n=m.get(nullName);if(!c||!n)continue;
+        const d=c[metric]-n[metric];diffs.push(d);wins.push(Math.sign(d));
+        const density=m.get('CONWAY_GROUP_VIEW').density;
+        if(!perDensity[density])perDensity[density]=[];perDensity[density].push(d);
+      }
+      out[nullName][metric]={
+        pairs:diffs.length,
+        meanDelta:mean(diffs),
+        medianDelta:median(diffs),
+        sdDelta:stdev(diffs),
+        standardizedPairedDelta:stdev(diffs)>0?mean(diffs)/stdev(diffs):0,
+        winRate:mean(wins.map(x=>x>0?1:0)),
+        tieRate:mean(wins.map(x=>x===0?1:0)),
+        lossRate:mean(wins.map(x=>x<0?1:0)),
+        byDensity:Object.fromEntries(Object.entries(perDensity).map(([d,a])=>[d,{pairs:a.length,meanDelta:mean(a),medianDelta:median(a),winRate:mean(a.map(x=>x>0?1:0))}]))
+      };
+    }
+  }
+  return out;
+}
+
+function boundarySensitivity({densities=[.1,.2,.3,.4,.5,.6,.7,.8],seeds=50,steps=200}={}){
+  const rows=[];
+  for(const boundary of ['torus','fixed']) for(const density of densities) for(let si=0;si<seeds;si++){
+    const seed=44000+si*131+Math.round(density*1000);
+    let g=seededInitial(seed,density),extinctAt=null;
+    for(let generation=0;generation<steps;generation++){
+      if(countActive(g)===0){extinctAt=generation;break}
+      g=stepLife(g,{w:W,h:H,boundary});
+    }
+    if(extinctAt===null&&countActive(g)===0)extinctAt=steps;
+    rows.push({boundary,density,extinct:countActive(g)===0,extinctAt,terminalActive:countActive(g)/N});
+  }
+  const out={};
+  for(const boundary of ['torus','fixed']){
+    out[boundary]={};
+    for(const density of densities){
+      const a=rows.filter(r=>r.boundary===boundary&&r.density===density);
+      out[boundary][density]={
+        runs:a.length,
+        extinctionFrequency:mean(a.map(x=>x.extinct?1:0)),
+        medianExtinctionGeneration:median(a.filter(x=>x.extinctAt!==null).map(x=>x.extinctAt)),
+        meanTerminalActiveRatio:mean(a.map(x=>x.terminalActive))
+      };
+    }
+  }
+  return out;
+}
+function densityBreakdown(rows){
+  const out={};
+  for(const name of ['FIXED','RANDOM','SHUFFLE','CONWAY']){
+    out[name]={};
+    for(const density of [.1,.2,.3,.4,.5,.6,.7,.8]){
+      const a=rows.filter(r=>r.name===name&&r.density===density);
+      out[name][density]={
+        runs:a.length,
+        activeRatio:mean(a.map(x=>x.activeRatio)),
+        medianGroupLifetime:median(a.map(x=>x.medianGroupLifetime)),
+        extinctionFrequency:mean(a.map(x=>x.extinct?1:0)),
+        meanHouseRichness:mean(a.map(x=>x.meanHouseRichness)),
+        meanHouseRichnessWhenPresent:mean(a.map(x=>x.meanHouseRichnessWhenPresent)),
+        meanHouseEntropy:mean(a.map(x=>x.meanHouseEntropy)),
+        meanHouseEntropyWhenPresent:mean(a.map(x=>x.meanHouseEntropyWhenPresent)),
+        coMembershipPersistenceMean:mean(a.map(x=>x.coMembershipPersistenceMean))
+      };
+    }
+  }
+  return out;
+}
+function metadataIsolationGate(){
+  const initial=seededInitial(77001,.42);
+  const finalA=runLife(initial,250,{w:W,h:H,boundary:'torus'});
+  mapping(1);mapping(99999);
+  const finalB=runLife(initial,250,{w:W,h:H,boundary:'torus'});
+  const a=hashObject({bits:bitString(finalA)}),b=hashObject({bits:bitString(finalB)});
+  assert.equal(a,b,'House metadata leaked into Conway transition');
+  return {identical:true,hash:a};
+}
+
+const patternTests=validatePatterns();
+const mappingValidation=mappingGate();
+const determinism=determinismGate();
+const fullSocialDeterminism=fullSocialDeterminismGate();
+const metadataIsolation=metadataIsolationGate();
+const rows=structureSuite();
+const strongNull=strongNullSuite();
+const strongNullHoldout=strongNullSuite({seedBase:52000,mappingBase:62000,label:'independent-holdout'});
+const boundary=boundarySensitivity();
+const report={
+  version:'social-life-five-houses-fa-r2-v3',
+  baseline:{grid:'8x8',npcCount:64,boundary:'torus',rule:'B3/S23',houseCounts:HOUSE_COUNTS,stepsPerRun:200,densities:[.1,.2,.3,.4,.5,.6,.7,.8],seedsPerDensity:10,mappings:10},
+  engineering:{patternTests,mappingValidation,determinism,fullSocialDeterminism,metadataIsolation,pass:true},
+  structure:{
+    aggregate:aggregate(rows),
+    byDensity:densityBreakdown(rows),
+    boundarySensitivity:boundary,
+    strongNulls:{
+      discovery:{aggregate:aggregate(strongNull.rows),validation:strongNull.validation,paired:pairedStrongNullComparison(strongNull.rows)},
+      holdout:{aggregate:aggregate(strongNullHoldout.rows),validation:strongNullHoldout.validation,paired:pairedStrongNullComparison(strongNullHoldout.rows)}
+    }
+  },
+  gates:{
+    engineCorrectness:'PASS',
+    socialStructure:'UNKNOWN',
+    npcBehavioralEffect:'UNKNOWN',
+    economicUtility:'UNKNOWN',
+    leadershipUtility:'UNKNOWN',
+    mappingRobustness:'UNKNOWN',
+    strongControlComparison:'UNKNOWN_FA_R2_DATA_AVAILABLE',
+    autonomy:'NOT_TESTED',
+    authoritySafety:'PASS_RESEARCH_HARNESS_ONLY',
+    final:'UNKNOWN'
+  },
+  notes:[
+    'This run closes engineering FA-R0 only and produces exploratory FA-R1 structure data.',
+    'V3 fixes NPC mapping so mapping seeds move NPC identity + authoritative house together, and adds full social-state replay hashing.',
+    'V4 computes co-membership persistence from component labels instead of materializing string pair sets; semantics are unchanged and runtime is bounded.',
+    'FA-R2 adds exact persistence-matched, per-group composition-matched, and size+track-lifetime-matched null controls.',
+    'FA-R2 V2 adds paired per-run deltas, win/tie/loss rates, and density-stratified comparisons; these are structural evidence, not gameplay utility proof.',
+    'FA-R2 V3 repeats the complete strong-null protocol on an independent holdout seed/mapping family before any Resource→Production NPC coupling.',
+    'Strong nulls are structural controls only; NPC decisions, canonical economy, and leader trials are still not implemented.',
+    'UNKNOWN must not be promoted to PASS from these structural results.'
+  ]
+};
+console.log('TESTGE_SOCIAL_LIFE_BEGIN');
+console.log(JSON.stringify(report,null,2));
+console.log('TESTGE_SOCIAL_LIFE_END');
+console.log('ENGINE_CORRECTNESS=PASS');
+console.log('FINAL_SOCIAL_LIFE_DECISION=UNKNOWN');

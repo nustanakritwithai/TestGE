@@ -1,0 +1,25 @@
+name: TestGE FA-R3 Resource Production
+
+on:
+  push:
+    branches:
+      - 'research/social-life-five-houses-*'
+    paths:
+      - 'research/social-life-fa-r3-resource-production.mjs'
+      - '.github/workflows/fa-r3-resource-production.yml'
+  pull_request:
+    paths:
+      - 'research/social-life-fa-r3-resource-production.mjs'
+      - '.github/workflows/fa-r3-resource-production.yml'
+  workflow_dispatch:
+
+jobs:
+  fa-r3:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run FA-R3 Resource to Production causal harness
+        run: node research/social-life-fa-r3-resource-production.mjs
